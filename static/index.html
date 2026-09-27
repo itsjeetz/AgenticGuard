@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AegisAgent — Prompt Injection Firewall & SOC Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
   <div class="soc-layout">
     <!-- Top Global Header -->
@@ -16,7 +20,7 @@
       <div class="logo-group">
         <div class="logo-shield">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
         </div>
         <div class="logo-text">
@@ -73,23 +77,45 @@
     <!-- Main Navigation Tabs -->
     <nav class="soc-nav">
       <button class="nav-tab active" data-tab="tabInspector" id="navInspector">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
         <span>1. Inspector & Neutralizer</span>
       </button>
       <button class="nav-tab" data-tab="tabSandbox" id="navSandbox">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
         <span>2. Agent Sandbox (ASR Demo)</span>
       </button>
       <button class="nav-tab" data-tab="tabEval" id="navEval">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="20" x2="18" y2="10"></line>
+          <line x1="12" y1="20" x2="12" y2="4"></line>
+          <line x1="6" y1="20" x2="6" y2="14"></line>
+        </svg>
         <span>3. Evaluation & Claims</span>
       </button>
       <button class="nav-tab" data-tab="tabAudit" id="navAudit">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+          <polyline points="14 2 14 8 20 8"></polyline>
+          <line x1="16" y1="13" x2="8" y2="13"></line>
+          <line x1="16" y1="17" x2="8" y2="17"></line>
+          <polyline points="10 9 9 9 8 9"></polyline>
+        </svg>
         <span>4. Audit & Feedback</span>
       </button>
       <button class="nav-tab" data-tab="tabPolicy" id="navPolicy">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path
+            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+          </path>
+        </svg>
         <span>5. Policy Configuration</span>
       </button>
     </nav>
@@ -110,7 +136,8 @@
               <option value="CONTEXT_POISONING">6. Context Poisoning: Authority claim memo</option>
               <option value="MULTI_STEP_JAILBREAK">7. Multi-Step Jailbreak: Staged instruction turn</option>
               <option value="ENCODED_INSTRUCTIONS">8. Encoded Instructions: Base64 payload in review</option>
-              <option value="INDIRECT_PROMPT_INJECTION">9. Indirect Injection: Malicious hidden text in web carrier</option>
+              <option value="INDIRECT_PROMPT_INJECTION">9. Indirect Injection: Malicious hidden text in web carrier
+              </option>
               <option value="BENIGN_HARD_NEGATIVE">10. Hard-Negative Benign: Pen-test workshop doc</option>
             </select>
           </div>
@@ -132,7 +159,11 @@
               <option value="image">Image (via OCR)</option>
             </select>
             <button class="btn-primary" id="btnInspect">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path></svg>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path
+                  d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83">
+                </path>
+              </svg>
               <span>Inspect & Neutralize</span>
             </button>
           </div>
@@ -145,12 +176,17 @@
               <h3>Content Input</h3>
               <span class="hint">Type or paste text, or drag-and-drop a file below</span>
             </div>
-            <textarea id="textInput" class="soc-textarea" placeholder="Enter content to inspect or select a preset above..."></textarea>
-            
+            <textarea id="textInput" class="soc-textarea"
+              placeholder="Enter content to inspect or select a preset above..."></textarea>
+
             <div class="dropzone" id="fileDropzone">
               <input type="file" id="fileInput" class="file-hidden-input">
               <div class="dropzone-label">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
                 <span>Drop PDF, HTML, EML, DOCX, or Image here, or <u>Browse</u></span>
                 <span class="file-name-display" id="fileNameDisplay"></span>
               </div>
@@ -189,7 +225,8 @@
                 <div class="layer-pill" id="pillL1"><span>L1 Ingestion</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL2"><span>L2 Normalization</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL3Rules"><span>L3a Rules</span><span class="time">-</span></div>
-                <div class="layer-pill" id="pillL3Classifier"><span>L3b Classifier</span><span class="time">-</span></div>
+                <div class="layer-pill" id="pillL3Classifier"><span>L3b Classifier</span><span class="time">-</span>
+                </div>
                 <div class="layer-pill" id="pillL3Judge"><span>L3c Judge</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL4"><span>L4 Policy</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL5"><span>L5 Neutralizer</span><span class="time">-</span></div>
@@ -241,7 +278,8 @@
         <div class="sandbox-header-row">
           <div class="sandbox-title">
             <h2>Victim Agent Sandbox — Attack Success Rate (ASR) Demo</h2>
-            <p>Compare real-time ReAct execution side-by-side: <strong>Unprotected Agent</strong> vs <strong>AegisAgent Protected Agent</strong>.</p>
+            <p>Compare real-time ReAct execution side-by-side: <strong>Unprotected Agent</strong> vs <strong>AegisAgent
+                Protected Agent</strong>.</p>
           </div>
           <div class="sandbox-controls">
             <label for="selectScenario">Select Scenario:</label>
@@ -260,7 +298,9 @@
               <option value="B3 (Benign)">B3 (Benign): Financial Invoice Reconciliation</option>
             </select>
             <button class="btn-primary" id="btnRunSandbox">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
               <span>Run Side-by-Side Comparison</span>
             </button>
           </div>
@@ -297,7 +337,8 @@
               <div class="col-status" id="unprotStatus">Status: Ready</div>
             </div>
             <div class="col-body" id="unprotBody">
-              <div class="empty-state">Select a scenario and click 'Run Side-by-Side Comparison' to observe vulnerability behavior.</div>
+              <div class="empty-state">Select a scenario and click 'Run Side-by-Side Comparison' to observe
+                vulnerability behavior.</div>
             </div>
           </div>
 
@@ -308,7 +349,8 @@
               <div class="col-status" id="protStatus">Status: Ready</div>
             </div>
             <div class="col-body" id="protBody">
-              <div class="empty-state">Protected execution with L1-L5 firewall and G1-G3 runtime guards will appear here.</div>
+              <div class="empty-state">Protected execution with L1-L5 firewall and G1-G3 runtime guards will appear
+                here.</div>
             </div>
           </div>
         </div>
@@ -323,11 +365,21 @@
           </div>
           <div class="eval-btn-group">
             <button class="btn-secondary" id="btnViewReportMarkdown" title="Read raw pre-generated markdown report">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
               <span>View EVAL_REPORT.md</span>
             </button>
             <button class="btn-secondary" id="btnRefreshEval">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
               <span>Reload Latest Report</span>
             </button>
           </div>
@@ -347,13 +399,15 @@
           <div class="claim-card" id="cardClaimF3">
             <div class="card-badge" id="badgeClaimF3">CHECKING</div>
             <h3>F3 Claim: All 9 Attack Types</h3>
-            <p id="descClaimF3">Requires &ge; 7 categories detected (n &ge; 15, flagged-recall &ge; 0.80, correct-recall &ge; 0.70).</p>
+            <p id="descClaimF3">Requires &ge; 7 categories detected (n &ge; 15, flagged-recall &ge; 0.80, correct-recall
+              &ge; 0.70).</p>
             <div class="claim-stat" id="statClaimF3">-</div>
           </div>
           <div class="claim-card" id="cardClaimD2">
             <div class="card-badge" id="badgeClaimD2">CHECKING</div>
             <h3>D2 Claim: Deep Defense on Text & Structured Input</h3>
-            <p id="descClaimD2">Requires overall flagged-recall &ge; 0.90, FPR &le; 0.05, and reported ablation lift.</p>
+            <p id="descClaimD2">Requires overall flagged-recall &ge; 0.90, FPR &le; 0.05, and reported ablation lift.
+            </p>
             <div class="claim-stat" id="statClaimD2">-</div>
           </div>
           <div class="claim-card" id="cardClaimD3">
@@ -379,7 +433,9 @@
                 </tr>
               </thead>
               <tbody>
-                <tr><td colspan="5" class="loading">Loading evaluation metrics...</td></tr>
+                <tr>
+                  <td colspan="5" class="loading">Loading evaluation metrics...</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -396,7 +452,9 @@
                 </tr>
               </thead>
               <tbody>
-                <tr><td colspan="4" class="loading">Loading source metrics...</td></tr>
+                <tr>
+                  <td colspan="4" class="loading">Loading source metrics...</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -468,7 +526,9 @@
                   </tr>
                 </thead>
                 <tbody id="tbodyAuditLog">
-                  <tr><td colspan="8" class="loading">Loading audit records...</td></tr>
+                  <tr>
+                    <td colspan="8" class="loading">Loading audit records...</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -479,7 +539,7 @@
             <div class="feedback-submit-card">
               <h3>Submit Review Feedback (§8.2)</h3>
               <p class="hint">Label false positives or missed evasions to trigger retraining.</p>
-              
+
               <div class="form-group">
                 <label for="fbRequestId">Request ID:</label>
                 <input type="text" id="fbRequestId" class="soc-input" placeholder="req-xxxxxx">
@@ -495,12 +555,14 @@
 
               <div class="form-group">
                 <label for="fbContent">Payload Content (Optional if logged):</label>
-                <textarea id="fbContent" class="soc-textarea small" placeholder="Paste specific sample text..."></textarea>
+                <textarea id="fbContent" class="soc-textarea small"
+                  placeholder="Paste specific sample text..."></textarea>
               </div>
 
               <div class="form-group">
                 <label for="fbNote">Reviewer Note:</label>
-                <input type="text" id="fbNote" class="soc-input" placeholder="e.g. Authorized staging penetration test script">
+                <input type="text" id="fbNote" class="soc-input"
+                  placeholder="e.g. Authorized staging penetration test script">
               </div>
 
               <button class="btn-primary" id="btnSubmitFeedback">Submit to Review Queue</button>
@@ -511,7 +573,11 @@
               <div class="rq-header">
                 <h3>Pending Review Queue</h3>
                 <button class="btn-primary small" id="btnRetrainModel">
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                  </svg>
                   <span>Retrain Model</span>
                 </button>
               </div>
@@ -529,10 +595,15 @@
         <div class="policy-header-row">
           <div>
             <h2>Policy Thresholds & Tool Authorization Rules (§4, §8.3)</h2>
-            <p>Hot-reload runtime decision boundaries, source risk multipliers, and tool tiers via <code>PUT /api/policy</code>.</p>
+            <p>Hot-reload runtime decision boundaries, source risk multipliers, and tool tiers via
+              <code>PUT /api/policy</code>.</p>
           </div>
           <button class="btn-primary" id="btnSavePolicy">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+              <polyline points="7 3 7 8 15 8"></polyline>
+            </svg>
             <span>Save & Apply Policy</span>
           </button>
         </div>
@@ -541,13 +612,14 @@
           <!-- Thresholds Sliders -->
           <div class="policy-card">
             <h3>Decision Thresholds</h3>
-            
+
             <div class="slider-group">
               <div class="slider-header">
                 <span>ALLOW Below Risk (allow_below):</span>
                 <span class="slider-val" id="valAllowBelow">0.25</span>
               </div>
-              <input type="range" id="rangeAllowBelow" min="0.05" max="0.50" step="0.01" value="0.25" class="soc-slider">
+              <input type="range" id="rangeAllowBelow" min="0.05" max="0.50" step="0.01" value="0.25"
+                class="soc-slider">
             </div>
 
             <div class="slider-group">
@@ -579,7 +651,8 @@
                 <span>Multi-Turn Session Threshold:</span>
                 <span class="slider-val" id="valSessionThreshold">0.70</span>
               </div>
-              <input type="range" id="rangeSessionThreshold" min="0.40" max="0.90" step="0.01" value="0.70" class="soc-slider">
+              <input type="range" id="rangeSessionThreshold" min="0.40" max="0.90" step="0.01" value="0.70"
+                class="soc-slider">
             </div>
           </div>
 
@@ -633,4 +706,5 @@
 
   <script src="app.js"></script>
 </body>
+
 </html>

@@ -238,14 +238,21 @@ function initInspectorTab() {
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       selectedFile = e.dataTransfer.files[0];
       fileNameDisplay.textContent = `Selected: ${selectedFile.name} (${Math.round(selectedFile.size / 1024)} KB)`;
-      textInput.value = `[Binary / Formatted File: ${selectedFile.name}]`;
+      textInput.value = `[File Selected: ${selectedFile.name} (${Math.round(selectedFile.size / 1024)} KB) - Click 'Inspect & Neutralize' to extract and scan content]`;
     }
   });
   fileInput.addEventListener("change", () => {
     if (fileInput.files && fileInput.files.length > 0) {
       selectedFile = fileInput.files[0];
       fileNameDisplay.textContent = `Selected: ${selectedFile.name} (${Math.round(selectedFile.size / 1024)} KB)`;
-      textInput.value = `[Binary / Formatted File: ${selectedFile.name}]`;
+      textInput.value = `[File Selected: ${selectedFile.name} (${Math.round(selectedFile.size / 1024)} KB) - Click 'Inspect & Neutralize' to extract and scan content]`;
+    }
+  });
+
+  textInput.addEventListener("input", () => {
+    if (selectedFile) {
+      selectedFile = null;
+      fileNameDisplay.textContent = "";
     }
   });
 
@@ -289,7 +296,11 @@ async function runInspection() {
     }
 
     const verdict = await res.json();
-    renderVerdict(verdict, content);
+    const displayText = verdict.extracted_text || content;
+    if (verdict.extracted_text) {
+      textInput.value = verdict.extracted_text;
+    }
+    renderVerdict(verdict, displayText);
     showToast(`Inspection Complete: Action = ${verdict.action}`);
   } catch (err) {
     showToast(err.message, true);

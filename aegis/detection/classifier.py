@@ -17,6 +17,9 @@ from aegis.policy.config import PolicyConfig, get_policy
 
 DEFAULT_MODEL_PATH = Path("data/models/classifier.joblib")
 
+# Process-level model cache: resolved_path -> (mtime, pipeline)
+_MODEL_CACHE: dict[str, tuple[float, Pipeline]] = {}
+
 
 class MLClassifier:
     """TF-IDF character n-gram + Logistic Regression injection classifier (§5.3b)."""
@@ -32,10 +35,18 @@ class MLClassifier:
         self._load_or_init()
 
     def _load_or_init(self) -> None:
-        """Load trained model if exists; otherwise remain uninitialized until train() is called."""
+        """Load trained model if exists from memory cache or disk; otherwise remain uninitialized."""
         if self.model_path.exists():
             try:
-                self.pipeline = joblib.load(self.model_path)
+                resolved_key = str(self.model_path.resolve())
+                mtime = self.model_path.stat().st_mtime
+                if resolved_key in _MODEL_CACHE and _MODEL_CACHE[resolved_key][0] == mtime:
+                    self.pipeline = _MODEL_CACHE[resolved_key][1]
+                    return
+
+                pipeline = joblib.load(self.model_path)
+                _MODEL_CACHE[resolved_key] = (mtime, pipeline)
+                self.pipeline = pipeline
             except Exception:
                 self.pipeline = None
         else:
@@ -71,9 +82,11 @@ class MLClassifier:
 
         self.pipeline.fit(texts, labels)
 
-        # Save to model_path
+        # Save to model_path and update cache
         self.model_path.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(self.pipeline, self.model_path)
+        resolved_key = str(self.model_path.resolve())
+        _MODEL_CACHE[resolved_key] = (self.model_path.stat().st_mtime, self.pipeline)
 
     def predict_proba(self, texts: list[str]) -> list[float]:
         """Return probability P(injection) for each text."""
@@ -173,7 +186,7 @@ class MLClassifier:
                                         variant_chain=v_chain,
                                     )
                                 )
-                        elif ctx.trust == Trust.UNTRUSTED or ctx.source != InputSource.USER_MESSAGE:
+                        elif (ctx.trust == Trust.UNTRUSTED or ctx.source != InputSource.USER_MESSAGE) and prob >= 0.65:
                             findings.append(
                                 Finding(
                                     attack_type=AttackType.INDIRECT_PROMPT_INJECTION,
@@ -216,6 +229,10 @@ class MLClassifier:
                                 variant_chain=v_chain,
                             )
                         )
+
+                # Skip expensive sliding window on remaining variants if high-confidence hit found
+                if prob >= 0.85 and len(findings) > 0:
+                    break
 
         return findings
 

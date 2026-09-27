@@ -7,6 +7,7 @@ import pymupdf
 from aegis.ingestion.base import BaseAdapter, OversizeContentError, IngestionError
 from aegis.models import InputSource, Segment
 from aegis.policy.config import get_policy
+from server.routes_health import is_ocr_available
 
 if TYPE_CHECKING:
     from aegis.policy.config import PolicyConfig
@@ -86,6 +87,7 @@ class PdfAdapter(BaseAdapter):
         for page_num in range(len(doc)):
             page = doc[page_num]
             page_rect = page.rect
+            page_text_count = 0
 
             # Annotations
             for annot in page.annots() or []:
@@ -154,6 +156,46 @@ class PdfAdapter(BaseAdapter):
                             )
                         )
                         seg_idx += 1
+                        page_text_count += 1
+
+            # Fallback for scanned/image-only pages with no native text layer (§5.1)
+            if page_text_count == 0:
+                has_images = bool(page.get_images())
+                ocr_extracted = False
+                if is_ocr_available():
+                    try:
+                        import pytesseract
+                        from PIL import Image
+
+                        pix = page.get_pixmap()
+                        img = Image.open(io.BytesIO(pix.tobytes("png")))
+                        ocr_result = pytesseract.image_to_string(img, config="--psm 6").strip()
+                        if ocr_result:
+                            segments.append(
+                                Segment(
+                                    id=f"seg-pdf-{seg_idx}",
+                                    text=ocr_result,
+                                    origin="ocr",
+                                    location=f"page {page_num + 1} ocr",
+                                    hidden_reason=None,
+                                )
+                            )
+                            seg_idx += 1
+                            ocr_extracted = True
+                    except Exception:
+                        pass
+
+                if not ocr_extracted and has_images:
+                    segments.append(
+                        Segment(
+                            id=f"seg-pdf-{seg_idx}",
+                            text=f"[Page {page_num + 1}: Scanned / image-only content - OCR service offline]",
+                            origin="ocr",
+                            location=f"page {page_num + 1}",
+                            hidden_reason=None,
+                        )
+                    )
+                    seg_idx += 1
 
         doc.close()
 
@@ -161,7 +203,7 @@ class PdfAdapter(BaseAdapter):
             segments.append(
                 Segment(
                     id=f"seg-pdf-{seg_idx}",
-                    text="",
+                    text="[Empty PDF / No extractable text layer]",
                     origin="visible",
                     location="page 1",
                     hidden_reason=None,

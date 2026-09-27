@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from aegis.models import InputSource, Verdict
 from aegis.pipeline import get_pipeline
@@ -25,7 +26,8 @@ async def inspect_content(request: Request) -> Verdict:
         try:
             body = await request.json()
             payload = InspectJsonRequest.model_validate(body)
-            return pipeline.process(
+            return await run_in_threadpool(
+                pipeline.process,
                 content=payload.content,
                 source=payload.source,
                 session_id=payload.session_id,
@@ -45,7 +47,8 @@ async def inspect_content(request: Request) -> Verdict:
             if file is not None and hasattr(file, "read"):
                 data = await file.read()
                 filename = getattr(file, "filename", None)
-                return pipeline.process(
+                return await run_in_threadpool(
+                    pipeline.process,
                     content=data,
                     source=src,
                     filename=filename,
@@ -55,7 +58,8 @@ async def inspect_content(request: Request) -> Verdict:
 
             content_field = form.get("content")
             if content_field:
-                return pipeline.process(
+                return await run_in_threadpool(
+                    pipeline.process,
                     content=str(content_field),
                     source=src,
                     session_id=str(session_id) if session_id else None,
@@ -77,7 +81,8 @@ async def neutralize_content(request: Request) -> Verdict:
         try:
             body = await request.json()
             payload = InspectJsonRequest.model_validate(body)
-            return pipeline.process(
+            return await run_in_threadpool(
+                pipeline.process,
                 content=payload.content,
                 source=payload.source,
                 session_id=payload.session_id,
@@ -97,7 +102,8 @@ async def neutralize_content(request: Request) -> Verdict:
             if file is not None and hasattr(file, "read"):
                 data = await file.read()
                 filename = getattr(file, "filename", None)
-                return pipeline.process(
+                return await run_in_threadpool(
+                    pipeline.process,
                     content=data,
                     source=src,
                     filename=filename,
@@ -107,7 +113,8 @@ async def neutralize_content(request: Request) -> Verdict:
 
             content_field = form.get("content")
             if content_field:
-                return pipeline.process(
+                return await run_in_threadpool(
+                    pipeline.process,
                     content=str(content_field),
                     source=src,
                     session_id=str(session_id) if session_id else None,

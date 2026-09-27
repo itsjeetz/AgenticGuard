@@ -92,6 +92,7 @@ class Verdict(BaseModel):
     layer_status: dict[str, dict[str, Any]] = Field(default_factory=dict)
     sanitized_text: str | None = None
     envelope_text: str | None = None
+    extracted_text: str | None = None
     timings_ms: dict[str, float] = Field(default_factory=dict)
     content_sha256: str
 

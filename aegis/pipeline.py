@@ -1,7 +1,7 @@
-"""AegisAgent Pipeline orchestrating L1 Ingestion through L5 Neutralization (§2, §5, §8)."""
-
+from collections import OrderedDict
 import hashlib
 import secrets
+import threading
 import time
 from typing import TYPE_CHECKING
 
@@ -35,6 +35,35 @@ if TYPE_CHECKING:
     pass
 
 
+class VerdictCache:
+    """Thread-safe LRU cache for identical payload verification (§8)."""
+
+    def __init__(self, max_size: int = 1000):
+        self._max_size = max_size
+        self._cache: OrderedDict[tuple, Verdict] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: tuple) -> Verdict | None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+            return None
+
+    def put(self, key: tuple, verdict: Verdict) -> None:
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            else:
+                if len(self._cache) >= self._max_size:
+                    self._cache.popitem(last=False)
+                self._cache[key] = verdict
+
+    def clear(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
+
 class FirewallPipeline:
     """End-to-end prompt injection firewall pipeline (§2, §8)."""
 
@@ -55,6 +84,7 @@ class FirewallPipeline:
         self.rule_detector = self.cascade.rule_detector
         self.session_tracker = SessionTracker(policy=self.policy)
         self.policy_engine = PolicyEngine(self.policy)
+        self.cache = VerdictCache(max_size=1000)
 
     def process(
         self,
@@ -79,6 +109,44 @@ class FirewallPipeline:
         content_sha256 = hashlib.sha256(content_bytes).hexdigest()
         request_id = f"req-{secrets.token_hex(6)}"
 
+        # Check LRU cache for identical requests (§8)
+        cache_key = (
+            content_sha256,
+            source.value if source else None,
+            filename,
+            neutralize_content,
+        ) if session_id is None else None
+
+        if cache_key:
+            cached = self.cache.get(cache_key)
+            if cached:
+                cached_timings = dict(cached.timings_ms)
+                cached_timings["total_pipeline_ms"] = round((time.perf_counter() - t_start) * 1000, 2)
+                cached_timings["total_ms"] = cached_timings["total_pipeline_ms"]
+                cached_timings["cache_hit"] = 1.0
+                verdict = Verdict(
+                    request_id=f"req-{secrets.token_hex(6)}",
+                    source=cached.source,
+                    trust=cached.trust,
+                    action=cached.action,
+                    risk=cached.risk,
+                    category_scores=dict(cached.category_scores),
+                    findings=list(cached.findings),
+                    degraded=cached.degraded,
+                    layer_status=dict(cached.layer_status),
+                    sanitized_text=cached.sanitized_text,
+                    envelope_text=cached.envelope_text,
+                    extracted_text=cached.extracted_text,
+                    timings_ms=cached_timings,
+                    content_sha256=cached.content_sha256,
+                )
+                try:
+                    get_audit_logger().log_verdict(verdict, content=content, session_id=session_id)
+                    get_metrics_tracker().record(verdict)
+                except Exception:
+                    pass
+                return verdict
+
         # ----------------------------------------------------
         # L1: Ingestion
         # ----------------------------------------------------
@@ -86,6 +154,7 @@ class FirewallPipeline:
         detected_source, segments = extract(content, source=source, filename=filename, policy=self.policy)
         timings["l1_ingestion_ms"] = round((time.perf_counter() - t0) * 1000, 2)
         layer_status["ingestion"] = {"status": "ok", "segments_count": len(segments)}
+        extracted_text = "\n\n".join(s.text for s in segments if s.text.strip())
 
         # Trust determination: USER for direct user message, UNTRUSTED for all external channels
         resolved_trust = trust or (
@@ -145,7 +214,11 @@ class FirewallPipeline:
             all_findings.extend(session_findings)
 
         timings["l2_normalize_ms"] = round(timings.get("l2_normalize_ms", 0.0), 2)
-        timings["l3_detection_ms"] = round((time.perf_counter() - t_l2_l3) * 1000 - timings["l2_normalize_ms"], 2)
+        total_l3 = (time.perf_counter() - t_l2_l3) * 1000 - timings["l2_normalize_ms"]
+        timings["l3_detection_ms"] = round(max(0.0, total_l3), 2)
+        timings["l3a_rules_ms"] = round(layer_status.get("rules", {}).get("duration_ms", timings["l3_detection_ms"]), 2)
+        timings["l3b_classifier_ms"] = round(layer_status.get("classifier", {}).get("duration_ms", 0.0), 2)
+        timings["l3c_judge_ms"] = round(layer_status.get("judge", {}).get("duration_ms", 0.0), 2)
 
         # ----------------------------------------------------
         # L4: Fusion and Policy
@@ -154,7 +227,13 @@ class FirewallPipeline:
         source_mult = self.policy.source_multipliers.get(detected_source.value, 1.0)
         is_hidden = hidden_count > 0
 
-        risk, category_scores = fuse_findings(all_findings, source_mult, is_hidden, self.policy)
+        risk, category_scores = fuse_findings(
+            all_findings,
+            source_mult,
+            is_hidden,
+            self.policy,
+            layer_status=layer_status,
+        )
 
         # Check degraded status across layers (§8.3)
         is_degraded = any(
@@ -226,6 +305,7 @@ class FirewallPipeline:
             layer_status=layer_status,
             sanitized_text=sanitized_text,
             envelope_text=envelope_text,
+            extracted_text=extracted_text,
             timings_ms=timings,
             content_sha256=content_sha256,
         )
@@ -236,6 +316,9 @@ class FirewallPipeline:
             get_metrics_tracker().record(verdict)
         except Exception:
             pass
+
+        if cache_key:
+            self.cache.put(cache_key, verdict)
 
         return verdict
 
