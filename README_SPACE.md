@@ -1,16 +1,17 @@
 ---
-title: AegisAgent - Prompt Injection Firewall
+title: AgenticGuard - Prompt Injection Firewall
 emoji: 🛡️
-colorFrom: blue
-colorTo: green
+colorFrom: purple
+colorTo: indigo
 sdk: docker
 app_port: 7860
 pinned: false
 ---
 
-# AegisAgent: Prompt Injection Firewall
+# AgenticGuard: Prompt Injection Firewall
 
 > **ET AI Hackathon — Problem 2: Agentic Cybersecurity**  
+> PROMPT INJECTION FIREWALL • DEFENSE-IN-DEPTH  
 > An industrial-grade Prompt Injection Firewall for AI Agents featuring format-aware ingestion, character-mapped span sanitization, spotlighting nonce envelopes, AI cascade classification, and runtime tool/egress guards.
 
 [![Tests](https://img.shields.io/badge/pytest-95%20passed-brightgreen.svg)]()
@@ -43,8 +44,8 @@ pinned: false
 ### 1. Installation
 ```bash
 # Clone and setup environment
-git clone https://github.com/hackathon/AegisAgent.git
-cd AegisAgent
+git clone https://github.com/itsjeetz/aegisagent.git
+cd aegisagent
 
 # Install dependencies
 pip install -r requirements.txt

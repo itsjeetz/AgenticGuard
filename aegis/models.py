@@ -1,4 +1,4 @@
-"""Core data models for AegisAgent (§4)."""
+"""Core data models for AgenticGuard (§4)."""
 
 from enum import Enum
 from typing import Any, Literal
@@ -87,14 +87,17 @@ class Verdict(BaseModel):
     action: FirewallAction
     risk: float = Field(ge=0.0, le=1.0)
     category_scores: dict[AttackType, float] = Field(default_factory=dict)
+    detected: list[AttackType] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
     degraded: bool = False
     layer_status: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    llm_judge_status: str | None = None
     sanitized_text: str | None = None
     envelope_text: str | None = None
     extracted_text: str | None = None
     timings_ms: dict[str, float] = Field(default_factory=dict)
     content_sha256: str
+    error: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -108,6 +111,9 @@ class HealthResponse(BaseModel):
     anthropic_key_set: bool
     judge_model: str
     agent_model: str
+    gemini_key_set: bool = False
+    gemini_available: bool = False
+    gemini_model: str = "gemini-2.5-flash"
     hf_classifier_id: str | None = None
     degraded_mode: bool
     demo_mode: bool = False
@@ -115,3 +121,6 @@ class HealthResponse(BaseModel):
     daily_llm_calls_limit: int | None = None
     daily_llm_calls_used: int | None = None
     daily_llm_calls_remaining: int | None = None
+    llm_judge_provider: str = "fallback (rules_only)"
+    llm_judge_status: str = "fallback:rules_only"
+    llm_providers_configured: list[str] = Field(default_factory=list)

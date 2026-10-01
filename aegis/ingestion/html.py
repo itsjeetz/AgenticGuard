@@ -124,7 +124,8 @@ class HtmlAdapter(BaseAdapter):
                 raise OversizeContentError(
                     f"HTML size {len(data)} exceeds limit of {pol.limits.max_upload_bytes} bytes"
                 )
-            raw_html = data.decode("utf-8", errors="replace")
+            from aegis.ingestion.text import decode_bytes_safely
+            raw_html = decode_bytes_safely(data)
         else:
             if len(data.encode("utf-8")) > pol.limits.max_upload_bytes:
                 raise OversizeContentError(

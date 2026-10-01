@@ -1,9 +1,12 @@
 from collections import OrderedDict
 import hashlib
+import logging
 import secrets
 import threading
 import time
 from typing import TYPE_CHECKING
+
+logger = logging.getLogger(__name__)
 
 from aegis.detection.base import DetectionContext
 from aegis.detection.cascade import DetectionCascade
@@ -101,13 +104,53 @@ class FirewallPipeline:
         timings: dict[str, float] = {}
         layer_status: dict[str, dict] = {}
 
-        # Content size validation (§8.3)
-        validate_input_limits(content, filename=filename)
-
-        # Content hash
         content_bytes = content.encode("utf-8") if isinstance(content, str) else content
         content_sha256 = hashlib.sha256(content_bytes).hexdigest()
         request_id = f"req-{secrets.token_hex(6)}"
+
+        try:
+            return self._process_internal(
+                content=content,
+                content_bytes=content_bytes,
+                content_sha256=content_sha256,
+                request_id=request_id,
+                source=source,
+                filename=filename,
+                session_id=session_id,
+                trust=trust,
+                neutralize_content=neutralize_content,
+                t_start=t_start,
+                timings=timings,
+                layer_status=layer_status,
+            )
+        except Exception as e:
+            logger.exception("Pipeline unhandled exception, failing closed: %s", e)
+            return fail_closed_verdict(
+                request_id=request_id,
+                source=source or InputSource.USER_MESSAGE,
+                trust=trust or Trust.UNTRUSTED,
+                content_sha256=content_sha256,
+                layer_status=layer_status,
+                error_msg=str(e),
+            )
+
+    def _process_internal(
+        self,
+        content: bytes | str,
+        content_bytes: bytes,
+        content_sha256: str,
+        request_id: str,
+        source: InputSource | None,
+        filename: str | None,
+        session_id: str | None,
+        trust: Trust | None,
+        neutralize_content: bool,
+        t_start: float,
+        timings: dict[str, float],
+        layer_status: dict[str, dict],
+    ) -> Verdict:
+        # Content size validation (§8.3)
+        validate_input_limits(content, filename=filename)
 
         # Check LRU cache for identical requests (§8)
         cache_key = (
@@ -255,6 +298,28 @@ class FirewallPipeline:
             trust=resolved_trust,
             has_localizable_spans=has_localizable,
         )
+
+        # Enforce fail-closed REVIEW (ESCALATE) verdict if unreadable PDF content is detected (§5.1)
+        has_unreadable_pdf = any(
+            s.hidden_reason == "unreadable_pdf" or "Could not extract readable text from this PDF" in s.text
+            for s in segments
+        )
+        if has_unreadable_pdf:
+            action = "ESCALATE"
+            risk = max(risk, 0.60)
+            if not any(f.detector == "pdf_adapter" for f in all_findings):
+                seg_id = next((s.id for s in segments if s.hidden_reason == "unreadable_pdf"), "seg-pdf-unreadable-0")
+                all_findings.append(
+                    Finding(
+                        detector="pdf_adapter",
+                        attack_type=AttackType.INDIRECT_PROMPT_INJECTION,
+                        score=0.60,
+                        segment_id=seg_id,
+                        evidence="Could not extract readable text from this PDF",
+                        layer="rules",
+                    )
+                )
+
         timings["l4_fusion_policy_ms"] = round((time.perf_counter() - t_l4) * 1000, 2)
         layer_status["policy"] = {"status": "ok", "action": action, "risk": round(risk, 4)}
 
@@ -293,6 +358,14 @@ class FirewallPipeline:
         timings["total_pipeline_ms"] = total_time
         timings["total_ms"] = total_time
 
+        # Compute detected categories (score >= threshold, default 0.50)
+        cat_thresh_map = getattr(getattr(self.policy, "thresholds", None), "category_thresholds", {}) or {}
+        detected = [
+            cat for cat, s in category_scores.items()
+            if s >= cat_thresh_map.get(cat, 0.50)
+        ]
+        llm_judge_status = layer_status.get("judge", {}).get("llm_judge_status")
+
         verdict = Verdict(
             request_id=request_id,
             source=detected_source,
@@ -300,9 +373,11 @@ class FirewallPipeline:
             action=action,
             risk=round(risk, 4),
             category_scores=category_scores,
+            detected=detected,
             findings=all_findings,
             degraded=is_degraded,
             layer_status=layer_status,
+            llm_judge_status=llm_judge_status,
             sanitized_text=sanitized_text,
             envelope_text=envelope_text,
             extracted_text=extracted_text,

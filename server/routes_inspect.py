@@ -1,11 +1,16 @@
 """Inspection and neutralization API endpoints supporting JSON and multipart upload (§10)."""
 
-from fastapi import APIRouter, HTTPException, Request
+import logging
+import secrets
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from starlette.concurrency import run_in_threadpool
 
-from aegis.models import InputSource, Verdict
+from aegis.models import InputSource, Trust, Verdict
 from aegis.pipeline import get_pipeline
+from aegis.resilience import fail_closed_verdict
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["inspection"])
 
@@ -22,8 +27,8 @@ async def inspect_content(request: Request) -> Verdict:
     pipeline = get_pipeline()
     content_type = request.headers.get("content-type", "")
 
-    if "application/json" in content_type:
-        try:
+    try:
+        if "application/json" in content_type:
             body = await request.json()
             payload = InspectJsonRequest.model_validate(body)
             return await run_in_threadpool(
@@ -33,11 +38,7 @@ async def inspect_content(request: Request) -> Verdict:
                 session_id=payload.session_id,
                 neutralize_content=False,
             )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {e}")
-
-    elif "multipart/form-data" in content_type:
-        try:
+        elif "multipart/form-data" in content_type:
             form = await request.form()
             file = form.get("file")
             source_str = form.get("source")
@@ -65,10 +66,19 @@ async def inspect_content(request: Request) -> Verdict:
                     session_id=str(session_id) if session_id else None,
                     neutralize_content=False,
                 )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to process multipart upload: {e}")
-
-    raise HTTPException(status_code=400, detail="Must provide either JSON content or a multipart file upload.")
+            raise ValueError("No file or content provided in multipart request")
+        else:
+            raise ValueError("Must provide either JSON content or a multipart file upload.")
+    except Exception as e:
+        logger.exception("Error during /api/inspect: %s", e)
+        return fail_closed_verdict(
+            request_id=f"req-err-{secrets.token_hex(4)}",
+            source=InputSource.USER_MESSAGE,
+            trust=Trust.UNTRUSTED,
+            content_sha256="",
+            layer_status={"error": {"status": "error", "error": str(e)}},
+            error_msg=str(e),
+        )
 
 
 @router.post("/neutralize", response_model=Verdict)
@@ -77,8 +87,8 @@ async def neutralize_content(request: Request) -> Verdict:
     pipeline = get_pipeline()
     content_type = request.headers.get("content-type", "")
 
-    if "application/json" in content_type:
-        try:
+    try:
+        if "application/json" in content_type:
             body = await request.json()
             payload = InspectJsonRequest.model_validate(body)
             return await run_in_threadpool(
@@ -88,11 +98,7 @@ async def neutralize_content(request: Request) -> Verdict:
                 session_id=payload.session_id,
                 neutralize_content=True,
             )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Invalid JSON payload: {e}")
-
-    elif "multipart/form-data" in content_type:
-        try:
+        elif "multipart/form-data" in content_type:
             form = await request.form()
             file = form.get("file")
             source_str = form.get("source")
@@ -120,7 +126,17 @@ async def neutralize_content(request: Request) -> Verdict:
                     session_id=str(session_id) if session_id else None,
                     neutralize_content=True,
                 )
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to process multipart upload: {e}")
+            raise ValueError("No file or content provided in multipart request")
+        else:
+            raise ValueError("Must provide either JSON content or a multipart file upload.")
+    except Exception as e:
+        logger.exception("Error during /api/neutralize: %s", e)
+        return fail_closed_verdict(
+            request_id=f"req-err-{secrets.token_hex(4)}",
+            source=InputSource.USER_MESSAGE,
+            trust=Trust.UNTRUSTED,
+            content_sha256="",
+            layer_status={"error": {"status": "error", "error": str(e)}},
+            error_msg=str(e),
+        )
 
-    raise HTTPException(status_code=400, detail="Must provide either JSON content or a multipart file upload.")

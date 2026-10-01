@@ -1,4 +1,7 @@
-/**
+# Script to regenerate static/app.js with el() helper, fail-closed error handling,
+# robust attack type detection, and correct CSS class matching.
+
+app_js_content = r'''/**
  * AgenticGuard Dashboard Frontend Application (§11)
  * Pure Vanilla JavaScript communicating with real FastAPI endpoints.
  */
@@ -218,32 +221,8 @@ async function initDemoBanner() {
         demoBanner.classList.add("hidden");
       }
     }
-
-    // Update LLM Judge footer status tag
-    if (data.llm_judge_provider && !data.llm_judge_provider.startsWith("fallback")) {
-      updateLlmJudgeFooter(data.llm_judge_provider);
-    } else if (data.llm_judge_status) {
-      updateLlmJudgeFooter(data.llm_judge_status);
-    }
   } catch (err) {
     console.warn("Health check error:", err);
-  }
-}
-
-function updateLlmJudgeFooter(providerOrStatus, reason) {
-  const footerTag = el("footerLlmJudge");
-  if (!footerTag) return;
-  if (!providerOrStatus) {
-    footerTag.textContent = "LLM judge: fallback (rules_only)";
-    return;
-  }
-  if (providerOrStatus.startsWith("ok") || providerOrStatus.startsWith("cached")) {
-    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
-  } else if (providerOrStatus.startsWith("fallback")) {
-    const r = reason ? ` (${reason})` : (providerOrStatus.includes(":") ? ` (${providerOrStatus.split(":")[1]})` : "");
-    footerTag.textContent = `LLM judge: fallback${r}`;
-  } else {
-    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
   }
 }
 
@@ -711,19 +690,6 @@ function renderVerdict(verdict, originalRawText) {
     renderThreePane(verdict, originalRawText);
   } catch (e) {
     console.error("Error rendering three-pane view:", e);
-  }
-
-  // 7. Dynamic Footer LLM Judge Status (§5)
-  try {
-    const judgeStatus = verdict.llm_judge_status || verdict.layer_status?.judge?.llm_judge_status;
-    const judgeProvider = verdict.layer_status?.judge?.provider;
-    if (judgeProvider && (judgeStatus?.startsWith("ok") || judgeStatus?.startsWith("cached"))) {
-      updateLlmJudgeFooter(`${judgeProvider} / ${judgeStatus}`);
-    } else if (judgeStatus) {
-      updateLlmJudgeFooter(judgeStatus);
-    }
-  } catch (e) {
-    console.error("Error updating llm judge footer:", e);
   }
 }
 
@@ -1291,3 +1257,9 @@ async function savePolicySettings() {
     showToast(err.message, true);
   }
 }
+'''
+
+with open("static/app.js", "w", encoding="utf-8") as f:
+    f.write(app_js_content.strip() + "\n")
+
+print("Generated static/app.js successfully!")

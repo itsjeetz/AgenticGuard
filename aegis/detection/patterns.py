@@ -209,6 +209,44 @@ CREDENTIAL_PATTERNS: list[RulePattern] = [
         weight=0.90,
         description="Solicitation of user passwords, private keys, or PINs",
     ),
+    RulePattern(
+        id="cred_imperative_exfil",
+        attack_type=AttackType.CREDENTIAL_THEFT,
+        regex=re.compile(
+            r"(?<!never\s)(?<!not\s)(?<!n't\s)\b(?:upload|dump|export|send|leak|exfil(?:trate)?|post|extract|fetch|transmit|output|display|show|share|read|steal)\s+"
+            r"(?:the\s+|all\s+|your\s+|our\s+)?(?:production\s+|prod\s+|system\s+|master\s+|root\s+)?"
+            r"(?:credentials?|passwords?|passwd|api[_\s-]?keys?|secret[_\s-]?keys?|tokens?|auth[_\s-]?tokens?|private[_\s-]?keys?|database\s+passwords?)\b",
+            re.IGNORECASE,
+        ),
+        weight=0.95,
+        description="Imperative verb soliciting production credentials or secret keys",
+    ),
+    RulePattern(
+        id="cred_username_password_pair",
+        attack_type=AttackType.CREDENTIAL_THEFT,
+        regex=re.compile(
+            r"\b(?:username|user|login)\s*[/\\:]\s*(?:password|pass|pwd)\b|"
+            r"\b(?:username|user|login)\s*[:=]\s*\S+[\s,;]+(?:password|pass|pwd)\s*[:=]\s*\S+\b|"
+            r"\b(?:credentials?|login)\s*[:=]\s*[\"']?\w+[\"']?\s*[/\\:]\s*[\"']?\S+[\"']?",
+            re.IGNORECASE,
+        ),
+        weight=0.90,
+        description="Structured username and password credential pair",
+    ),
+    RulePattern(
+        id="cred_token_key_formats",
+        attack_type=AttackType.CREDENTIAL_THEFT,
+        regex=re.compile(
+            r"\bAKIA[0-9A-Z]{16}\b|"
+            r"-----BEGIN (?:[A-Z0-9_-]+ )?PRIVATE KEY-----|"
+            r"\bBearer\s+[A-Za-z0-9\-._~+/]+=*\b|"
+            r"\bgh[pousr]_[A-Za-z0-9_]{36,255}\b|"
+            r"\bxox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,32}\b",
+            re.IGNORECASE,
+        ),
+        weight=0.95,
+        description="Explicit secret access key, private key, or bearer token signature",
+    ),
 ]
 
 # 6. CONTEXT_POISONING patterns

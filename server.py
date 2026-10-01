@@ -1,5 +1,5 @@
 """
-AegisAgent Prompt Injection Firewall - FastAPI Service.
+AgenticGuard Prompt Injection Firewall - FastAPI Service.
 Provides REST APIs for content inspection, surgical neutralization, live agent simulation,
 benchmark evaluation, and policy management. Serves the interactive Cyber-SOC Dashboard.
 """
@@ -7,11 +7,14 @@ benchmark evaluation, and policy management. Serves the interactive Cyber-SOC Da
 import os
 import time
 from typing import Optional, Dict, Any, List
+from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+load_dotenv()
 
 from aegis_firewall.models import (
     InputSource, AttackType, ThreatLevel, DefenseAction,
@@ -21,7 +24,7 @@ from aegis_firewall.engine import FirewallEngine
 from aegis_firewall.benchmark import BenchmarkRunner, BENCHMARK_CASES
 
 app = FastAPI(
-    title="AegisAgent Prompt Injection Firewall API",
+    title="AgenticGuard Prompt Injection Firewall API",
     version="1.0.0",
     description="Agentic Cybersecurity - Next-Gen Prompt Injection Firewall protecting AI agents across 11 heterogeneous formats and 9 attack vectors."
 )
@@ -42,7 +45,7 @@ firewall = FirewallEngine()
 async def health_check():
     return {
         "status": "HEALTHY",
-        "engine": "AegisAgent Firewall v1.0",
+        "engine": "AgenticGuard Firewall v1.0",
         "attack_vectors_covered": [a.value for a in AttackType],
         "input_sources_supported": [s.value for s in InputSource],
         "default_mode": firewall.policy.default_defense_mode.value,
@@ -239,7 +242,7 @@ async def serve_dashboard():
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
-    return "<h1>AegisAgent Prompt Injection Firewall API is running.</h1>"
+    return "<h1>AgenticGuard Prompt Injection Firewall API is running.</h1>"
 
 
 if __name__ == "__main__":

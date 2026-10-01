@@ -4,13 +4,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AegisAgent — Prompt Injection Firewall & SOC Dashboard</title>
+  <meta name="description" content="AgenticGuard — Industrial-Grade Prompt Injection Firewall with Defense-in-Depth for AI Agents.">
+  <title>AgenticGuard — Prompt Injection Firewall & SOC Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
     href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1790887427">
+  <script>
+    (function () {
+      var saved = localStorage.getItem("agenticguard_theme") || "light";
+      if (saved === "dark") {
+        document.documentElement.setAttribute("data-theme", "dark");
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+      }
+    })();
+  </script>
 </head>
 
 <body>
@@ -24,37 +35,26 @@
           </svg>
         </div>
         <div class="logo-text">
-          <h1>AEGIS<span>AGENT</span></h1>
+          <h1>AGENTIC<span>GUARD</span></h1>
           <span class="subtext">Prompt Injection Firewall &bull; Defense-in-Depth</span>
         </div>
       </div>
 
-      <div class="status-bar" id="systemStatusBar">
-        <div class="status-chip" id="chipOcr">
-          <span class="dot"></span>
-          <span class="lbl">OCR:</span>
-          <span class="val" id="valOcr">Checking...</span>
-        </div>
-        <div class="status-chip" id="chipClassifier">
-          <span class="dot"></span>
-          <span class="lbl">ML Classifier:</span>
-          <span class="val" id="valClassifier">Active</span>
-        </div>
-        <div class="status-chip" id="chipJudge">
-          <span class="dot"></span>
-          <span class="lbl">LLM Judge:</span>
-          <span class="val" id="valJudge">Checking...</span>
-        </div>
-        <div class="status-chip" id="chipAgent">
-          <span class="dot"></span>
-          <span class="lbl">Victim Agent:</span>
-          <span class="val mock-badge" id="valAgent">MOCK (offline)</span>
-        </div>
-        <button class="btn-refresh-health" id="btnRefreshHealth" title="Refresh System Health">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <polyline points="1 20 1 14 7 14"></polyline>
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle dark and light mode" title="Toggle color theme">
+          <svg class="sun-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+          <svg class="moon-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
           </svg>
         </button>
       </div>
@@ -195,38 +195,45 @@
 
           <!-- Verdict & Metrics Overview Sidebar -->
           <div class="verdict-sidebar">
-            <div class="card-header">
-              <h3>Firewall Verdict</h3>
-              <span class="req-id" id="verdictReqId">No inspection run yet</span>
-            </div>
+            <!-- 1. Verdict Summary Card -->
+            <div class="verdict-summary-card">
+              <div class="card-header">
+                <h3>Firewall Verdict</h3>
+                <span class="req-id" id="verdictReqId">No inspection run yet</span>
+              </div>
 
-            <div class="action-badge-container">
-              <div class="action-badge badge-idle" id="actionBadge">STANDBY</div>
-              <div class="risk-meter">
-                <div class="risk-label">Combined Risk: <span id="riskValue">0.000</span></div>
-                <div class="progress-bar-bg">
-                  <div class="progress-bar-fill" id="riskBarFill" style="width: 0%"></div>
+              <div class="action-badge-container">
+                <div class="action-badge badge-idle" id="actionBadge">STANDBY</div>
+                <div class="risk-meter">
+                  <div class="risk-label">Combined Risk: <span id="riskValue">0.000</span></div>
+                  <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="riskBarFill" style="width: 0%"></div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- Per-Category Score Bars -->
-            <div class="category-scores-section">
-              <h4>Attribution & Category Scores</h4>
-              <div id="categoryBarsList" class="category-bars-list">
-                <div class="empty-hint">Category scores will appear here after inspection.</div>
+            <!-- 2. Attack Type Detection Dedicated Card -->
+            <div class="attack-detection-card" id="attackDetectionSection">
+              <div class="attack-detection-header">
+                <h4>Attack Type Detection</h4>
+                <span class="attack-count-badge" id="detectionSummaryBadge">9 Vectors Standby</span>
+              </div>
+              <div id="attackDetectionList" class="attack-detection-list">
+                <!-- 9 Attack Type Rows Rendered in Fixed Order -->
               </div>
             </div>
 
-            <!-- Layer Status & Latency Breakdown -->
-            <div class="layer-timings-section">
-              <h4>Cascade Layer Status & Latency</h4>
+            <!-- 3. Cascade Layer Status & Latency Breakdown Dedicated Card -->
+            <div class="layer-timings-card" id="layerTimingsSection">
+              <div class="layer-timings-header">
+                <h4>Cascade Layer Status & Latency</h4>
+              </div>
               <div class="layer-pills-grid" id="layerPillsGrid">
                 <div class="layer-pill" id="pillL1"><span>L1 Ingestion</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL2"><span>L2 Normalization</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL3Rules"><span>L3a Rules</span><span class="time">-</span></div>
-                <div class="layer-pill" id="pillL3Classifier"><span>L3b Classifier</span><span class="time">-</span>
-                </div>
+                <div class="layer-pill" id="pillL3Classifier"><span>L3b Classifier</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL3Judge"><span>L3c Judge</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL4"><span>L4 Policy</span><span class="time">-</span></div>
                 <div class="layer-pill" id="pillL5"><span>L5 Neutralizer</span><span class="time">-</span></div>
@@ -278,7 +285,7 @@
         <div class="sandbox-header-row">
           <div class="sandbox-title">
             <h2>Victim Agent Sandbox — Attack Success Rate (ASR) Demo</h2>
-            <p>Compare real-time ReAct execution side-by-side: <strong>Unprotected Agent</strong> vs <strong>AegisAgent
+            <p>Compare real-time ReAct execution side-by-side: <strong>Unprotected Agent</strong> vs <strong>AgenticGuard
                 Protected Agent</strong>.</p>
           </div>
           <div class="sandbox-controls">
@@ -313,7 +320,7 @@
             <span class="sub">Vulnerable to attacks</span>
           </div>
           <div class="summary-metric-card secure">
-            <span class="lbl">AegisAgent Protected ASR</span>
+            <span class="lbl">AgenticGuard Protected ASR</span>
             <span class="val" id="metricProtectedAsr">0.0%</span>
             <span class="sub">100% Attack Reduction</span>
           </div>
@@ -345,7 +352,7 @@
           <!-- Protected Side -->
           <div class="sandbox-column protected">
             <div class="col-header">
-              <div class="col-tag green">AEGISAGENT PROTECTED</div>
+              <div class="col-tag green">AGENTICGUARD PROTECTED</div>
               <div class="col-status" id="protStatus">Status: Ready</div>
             </div>
             <div class="col-body" id="protBody">
@@ -700,11 +707,24 @@
       </section>
     </main>
 
+    <!-- Global Footer with Visible Build / Version Label & LLM Judge Status (§11) -->
+    <footer class="soc-footer" id="socFooter">
+      <div class="soc-footer-content">
+        <span class="footer-brand">AgenticGuard &bull; SOC Dashboard</span>
+        <span class="footer-sep">•</span>
+        <span class="build-version-tag" id="footerBuildLabel">BUILD: <span id="buildVersionValue">v0.1.0-dev.887655</span></span>
+        <span class="footer-sep">•</span>
+        <span class="llm-judge-tag" id="footerLlmJudge">LLM judge: fallback (rules_only)</span>
+        <span class="footer-sep">•</span>
+        <span class="footer-sub">Prompt Injection Firewall • Defense-in-Depth</span>
+      </div>
+    </footer>
+
     <!-- Global Notification Toast -->
     <div class="soc-toast" id="socToast"></div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=1790887655"></script>
 </body>
 
 </html>

@@ -1,6 +1,6 @@
-# AegisAgent Demonstration Script & Presentation Guide
+# AgenticGuard Demonstration Script & Presentation Guide
 
-A step-by-step walkthrough script for demonstrating **AegisAgent** to evaluators and judges.
+A step-by-step walkthrough script for demonstrating **AgenticGuard** to evaluators and judges.
 
 ---
 
@@ -14,25 +14,25 @@ A step-by-step walkthrough script for demonstrating **AegisAgent** to evaluators
    ```
    http://127.0.0.1:8000/
    ```
-3. Verify that the top status bar loads and shows system health.
+3. Notice the light-default theme with purple accent (`#A100FF`) and test the dark-mode toggle in the top-right header.
 
 ---
 
 ## Demo Walkthrough (5–7 Minutes)
 
 ### Step 1: Introduction & Grid Position (1 Min)
-- **Speaker:** "Hello. We are presenting AegisAgent, an industrial-grade Prompt Injection Firewall designed with defense-in-depth for AI agents."
+- **Speaker:** "Hello. We are presenting AgenticGuard, an industrial-grade Prompt Injection Firewall designed with defense-in-depth for AI agents."
 - **Key Talking Points:**
   - Traditional prompt injection defenses rely on simple regex keyword blacklists or call slow, expensive LLMs on every single word.
-  - AegisAgent separates **instruction from data**, localizes malicious spans back to **original character coordinates**, and neutralizes attacks with **nonce-delimited spotlighting envelopes**.
+  - AgenticGuard separates **instruction from data**, localizes malicious spans back to **original character coordinates**, and neutralizes attacks with **nonce-delimited spotlighting envelopes**.
   - Behind the firewall, runtime guards (ToolGuard, EgressGuard, MemoryGuard) ensure that even if an attack evades text detection, the agent cannot take destructive actions or exfiltrate secrets.
-- **Show Header Status Bar:**
-  - Point to the live capability badges: OCR status, ML Classifier status, LLM Judge status, and Victim Agent status.
-  - Note: If `ANTHROPIC_API_KEY` is not present, point out the **`MOCK (offline)`** badge, highlighting our strict commitment to §0 Rule 2: *Never fake results, degrade gracefully*.
+- **Theme & Branding:**
+  - Demonstrate the light theme with purple accent and the one-click toggle to dark mode, persisted in local storage.
+  - Powered by Google Gemini (`gemini-2.5-flash`) for the L3c Judge and sandboxed victim agent, with graceful degraded fallback when offline.
 
 ---
 
-### Step 2: Tab 1 — Inspector & Three-Pane Neutralization (2 Mins)
+### Step 2: Tab 1 — Inspector & Attack Type Detection (2 Mins)
 - **Speaker:** "Let's inspect how the firewall intercepts and neutralizes inbound hostile content."
 - **Actions:**
   1. In **Attack Preset**, select **`1. Instruction Override`**.
@@ -41,7 +41,7 @@ A step-by-step walkthrough script for demonstrating **AegisAgent** to evaluators
   3. Observe the immediate response:
      - **Action Badge:** Transitions to `SANITIZE` (or `BLOCK`).
      - **Risk Score:** Displayed with colored gradient progress bar (e.g. `0.850`).
-     - **Category Scores:** `INSTRUCTION_OVERRIDE` score bar jumps to `0.95`.
+     - **Attack Type Detection (9 Vectors):** All 9 attack vectors are evaluated. The detected vector (`Instruction Override`) is sorted to the top, highlighted in purple, with its exact confidence percentage (e.g. 95%), while undetected vectors display 0% in muted styling.
      - **Layer Status & Latency:** Total pipeline latency displayed in under 30 milliseconds.
   4. Point to the **Three-Pane View**:
      - **Pane 1 (Raw Ingested Content):** Shows the raw text with the injection phrase highlighted in red (`<mark class="attack-span">`).
@@ -65,7 +65,7 @@ A step-by-step walkthrough script for demonstrating **AegisAgent** to evaluators
        - Canary token leaked: **YES (Exfiltrated)**.
        - Tool `send_email` executed to `attacker@partner.org`.
        - Attack Succeeded: **YES (Vulnerable)**.
-     - **Right Column (AegisAgent Protected):**
+     - **Right Column (AgenticGuard Protected):**
        - The firewall detected the hidden injection.
        - The ToolGuard blocked unauthorized egress.
        - Canary token leaked: **NO**.
@@ -79,7 +79,7 @@ A step-by-step walkthrough script for demonstrating **AegisAgent** to evaluators
 ---
 
 ### Step 4: Tab 3 — Benchmark Evaluation & Pre-Registered Claims (1 Min)
-- **Speaker:** "Every metric in AegisAgent is derived from rigorous empirical measurements on a frozen test split."
+- **Speaker:** "Every metric in AgenticGuard is derived from rigorous empirical measurements on a frozen test split."
 - **Actions:**
   1. Switch to the **3. Evaluation & Claims** tab.
   2. Point out the **Pre-Registered Claims Checklist**:
@@ -93,7 +93,7 @@ A step-by-step walkthrough script for demonstrating **AegisAgent** to evaluators
 ---
 
 ### Step 5: Tab 4 & 5 — Operational Observability & Policy (1 Min)
-- **Speaker:** "For SOC teams, AegisAgent includes audit logging, continuous feedback retraining, and hot-reloadable policies."
+- **Speaker:** "For SOC teams, AgenticGuard includes audit logging, continuous feedback retraining, and hot-reloadable policies."
 - **Actions:**
   1. Switch to **4. Audit & Feedback**:
      - View the real-time SQLite audit trail. Note that raw text is privacy-masked with SHA-256 hashes and redacted excerpts.
@@ -107,4 +107,4 @@ A step-by-step walkthrough script for demonstrating **AegisAgent** to evaluators
 ---
 
 ## Conclusion & Summary
-"AegisAgent delivers end-to-end prompt injection security: format-aware ingestion across 11 sources, sub-character offset sanitization, spotlighting nonce envelopes, AI-driven cascade classification, and runtime guardrails that reduce agent attack success rate to 0.0%. Thank you."
+"AgenticGuard delivers end-to-end prompt injection security: format-aware ingestion across 11 sources, sub-character offset sanitization, spotlighting nonce envelopes, AI-driven cascade classification, and runtime guardrails that reduce agent attack success rate to 0.0%. Thank you."

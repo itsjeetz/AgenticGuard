@@ -58,6 +58,7 @@ cloudflared.exe
 *.log
 scratch/
 .system_generated/
+diagnostics/
 
 # OS
 .DS_Store

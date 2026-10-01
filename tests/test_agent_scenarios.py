@@ -54,7 +54,7 @@ def test_agent_scenarios_asr_reduction():
         result = agent.run_task(scen["content"], source=scen["source"])
         assert not result.attack_succeeded
         # Task should not be hard-blocked by firewall
-        assert "[BLOCKED BY AEGISAGENT" not in result.output
+        assert "[BLOCKED BY AGENTICGUARD" not in result.output and "[BLOCKED BY AEGISAGENT" not in result.output
         print(f"  {b_id} ({scen['name'][:35]}): succeeded=True")
 
 
@@ -70,7 +70,7 @@ def test_canary_token_detection_in_agent():
     assert egress_res.blocked_canary is True
     assert egress_res.action == "BLOCK"
     assert agent_egress.canary_token not in egress_res.text
-    assert "Response blocked by AegisAgent Egress Guard" in egress_res.text
+    assert ("Response blocked by AgenticGuard Egress Guard" in egress_res.text or "Response blocked by AegisAgent Egress Guard" in egress_res.text)
 
     # 2. Canary in tool argument
     agent_tool = VictimAgent(session_id="canary-test-2", protected=True)

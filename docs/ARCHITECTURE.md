@@ -1,15 +1,15 @@
-# AegisAgent Architecture & Technical Specification
+# AgenticGuard Architecture & Technical Specification
 
-A comprehensive technical architecture document for **AegisAgent: Prompt Injection Firewall**, built for the ET AI Hackathon (Problem 2: Agentic Cybersecurity).
+A comprehensive technical architecture document for **AgenticGuard: Prompt Injection Firewall**, built for the ET AI Hackathon (Problem 2: Agentic Cybersecurity).
 
 ---
 
 ## 1. System Overview & Core Philosophy
 
-Prompt injection attacks occur when untrusted data is inadvertently parsed as execution instructions by an AI agent. AegisAgent solves this fundamental architectural vulnerability through a defense-in-depth model built on three foundational pillars:
+Prompt injection attacks occur when untrusted data is inadvertently parsed as execution instructions by an AI agent. AgenticGuard solves this fundamental architectural vulnerability through a defense-in-depth model built on three foundational pillars:
 
 1. **Instruction vs. Data Separation:** Untrusted inbound channels (email, web, PDF, API responses, etc.) must never carry authoritative execution directives to an agent.
-2. **Offset-Preserving Neutralization:** Rather than indiscriminately blocking documents, AegisAgent maps transformed and decoded text spans back to the **original raw character coordinates**, redacting only the hostile payload and wrapping the safe content in a cryptographically random **nonce-delimited spotlighting envelope**.
+2. **Offset-Preserving Neutralization:** Rather than indiscriminately blocking documents, AgenticGuard maps transformed and decoded text spans back to the **original raw character coordinates**, redacting only the hostile payload and wrapping the safe content in a cryptographically random **nonce-delimited spotlighting envelope**.
 3. **Runtime Blast Radius Guards (G1–G3):** Even if an evasion bypasses text detection, runtime guards intercept tool calls, egress responses, and memory writes to enforce least privilege and prevent data exfiltration.
 
 ```

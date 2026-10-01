@@ -23,6 +23,7 @@ class ThresholdsConfig(BaseModel):
     encoded_boost: float = 0.05
     instruction_in_data_base_visible: float = 0.40
     instruction_in_data_base_hidden: float = 0.65
+    category_thresholds: dict[str, float] = Field(default_factory=dict)
 
 
 class LimitsConfig(BaseModel):

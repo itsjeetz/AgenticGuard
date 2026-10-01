@@ -9,6 +9,16 @@ if TYPE_CHECKING:
     from aegis.policy.config import PolicyConfig
 
 
+def decode_bytes_safely(raw: bytes) -> str:
+    """Decode bytes trying utf-8, latin-1, cp1252 fallbacks before replacement."""
+    for enc in ("utf-8", "latin-1", "cp1252", "iso-8859-1"):
+        try:
+            return raw.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+    return raw.decode("utf-8", errors="replace")
+
+
 class UserMessageAdapter(BaseAdapter):
     """Adapter for USER_MESSAGE source."""
 
@@ -27,7 +37,7 @@ class UserMessageAdapter(BaseAdapter):
                 raise OversizeContentError(
                     f"Message size {len(data)} exceeds limit of {pol.limits.max_upload_bytes} bytes"
                 )
-            text = data.decode("utf-8", errors="replace")
+            text = decode_bytes_safely(data)
         else:
             if len(data.encode("utf-8")) > pol.limits.max_upload_bytes:
                 raise OversizeContentError(

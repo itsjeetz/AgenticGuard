@@ -118,6 +118,7 @@ def fail_closed_verdict(
     
     Untrusted sources are BLOCKED; user messages are ESCALATED.
     """
+    from aegis.detection.fusion import ALL_ATTACK_TYPES
     action = "BLOCK" if trust == Trust.UNTRUSTED else "ESCALATE"
     return Verdict(
         request_id=request_id,
@@ -125,12 +126,15 @@ def fail_closed_verdict(
         trust=trust,
         action=action,
         risk=1.0,
-        category_scores={},
+        category_scores={at: 0.0 for at in ALL_ATTACK_TYPES},
+        detected=[],
         findings=[],
         degraded=True,
         layer_status=layer_status,
+        llm_judge_status="fail_closed_error",
         sanitized_text=None,
         envelope_text=None,
         timings_ms={"fail_closed": 0.0},
         content_sha256=content_sha256,
+        error=error_msg,
     )

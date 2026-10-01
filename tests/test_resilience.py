@@ -92,3 +92,19 @@ def test_upload_size_limit_enforced():
 
     valid_bytes = b"x" * 1024
     validate_input_limits(valid_bytes)  # should not raise
+
+
+def test_pipeline_unhandled_exception_fails_closed_with_error():
+    """Verify that an unexpected exception during pipeline execution returns BLOCK/ESCALATE with error field."""
+    pipeline = FirewallPipeline()
+    with patch.object(pipeline, "_process_internal", side_effect=RuntimeError("Simulated catastrophic crash")):
+        verdict = pipeline.process(
+            content="Testing exception resilience",
+            source=InputSource.WEB_PAGE,
+            trust=Trust.UNTRUSTED,
+        )
+        assert verdict.action == "BLOCK"
+        assert verdict.error is not None
+        assert "Simulated catastrophic crash" in verdict.error
+        assert verdict.risk == 1.0
+

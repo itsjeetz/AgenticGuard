@@ -27,24 +27,20 @@ def is_ocr_available() -> bool:
 
 def get_classifier_backend() -> str:
     """Check configured and available classifier backend."""
-    hf_id = os.environ.get("HF_CLASSIFIER_ID")
-    if hf_id:
-        return f"hf:{hf_id}"
-
-    if Path("data/models/classifier.joblib").exists() or Path("data/models/clf.joblib").exists():
-        return "scikit-learn"
-    return "none (untrained)"
+    return "provider_agnostic_llm_judge"
 
 
 @router.get("/health", response_model=HealthResponse)
 def get_health() -> HealthResponse:
     """Return health status and capabilities of the firewall."""
+    from aegis.judge_llm import get_llm_judge
+
     ocr_avail = is_ocr_available()
     api_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     demo_active = is_demo_mode()
     demo_mgr = get_demo_manager()
 
-    # In demo mode, judge is available only if API key is set AND remaining quota > 0
+    # In demo mode, judge is available only if provider is configured AND remaining quota > 0
     quota_exhausted = False
     rate_limit = None
     llm_limit = None
@@ -60,10 +56,27 @@ def get_health() -> HealthResponse:
         if llm_rem <= 0:
             quota_exhausted = True
 
-    judge_avail = api_key_set and (not quota_exhausted)
+    gemini_key_set = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    gemini_avail = gemini_key_set and (not quota_exhausted)
+
+    llm_judge = get_llm_judge()
+    configured_providers = llm_judge.get_configured_providers()
+    judge_avail = (len(configured_providers) > 0 or api_key_set or gemini_key_set) and (not quota_exhausted)
+
+    if judge_avail:
+        active_provider = configured_providers[0] if configured_providers else ("gemini" if gemini_key_set else "anthropic")
+        llm_status = f"ok ({active_provider})"
+    elif quota_exhausted:
+        active_provider = "fallback (quota_exhausted)"
+        llm_status = "fallback:quota_exhausted"
+    else:
+        active_provider = "fallback (rules_only)"
+        llm_status = "fallback:rules_only"
+
     clf_backend = get_classifier_backend()
-    judge_model = os.environ.get("JUDGE_MODEL", "claude-haiku-4-5-20251001")
-    agent_model = os.environ.get("AGENT_MODEL", "claude-sonnet-5")
+    judge_model = gemini_model if gemini_key_set else os.environ.get("JUDGE_MODEL", "claude-haiku-4-5-20251001")
+    agent_model = gemini_model if gemini_key_set else os.environ.get("AGENT_MODEL", "claude-sonnet-5")
     hf_id = os.environ.get("HF_CLASSIFIER_ID")
 
     degraded = not ocr_avail or not judge_avail
@@ -77,6 +90,9 @@ def get_health() -> HealthResponse:
         anthropic_key_set=api_key_set,
         judge_model=judge_model,
         agent_model=agent_model,
+        gemini_key_set=gemini_key_set,
+        gemini_available=gemini_avail,
+        gemini_model=gemini_model,
         hf_classifier_id=hf_id,
         degraded_mode=degraded,
         demo_mode=demo_active,
@@ -84,4 +100,7 @@ def get_health() -> HealthResponse:
         daily_llm_calls_limit=llm_limit,
         daily_llm_calls_used=llm_used,
         daily_llm_calls_remaining=llm_rem,
+        llm_judge_provider=active_provider,
+        llm_judge_status=llm_status,
+        llm_providers_configured=configured_providers,
     )

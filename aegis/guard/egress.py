@@ -134,7 +134,7 @@ class EgressGuard:
                 )
 
         if action == "BLOCK":
-            output_text = "[SECURITY ALERT: Response blocked by AegisAgent Egress Guard]"
+            output_text = "[SECURITY ALERT: Response blocked by AgenticGuard Egress Guard]"
 
         return EgressVerdict(
             action=action,

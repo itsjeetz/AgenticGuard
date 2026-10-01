@@ -93,3 +93,24 @@ def test_scanned_pdf_graceful_degradation_when_ocr_offline(monkeypatch):
     degraded_segs = [s for s in segments if "OCR service offline" in s.text or "no extractable text" in s.text.lower()]
     assert len(degraded_segs) > 0
     assert degraded_segs[0].origin == "ocr"
+
+
+def test_real_return_pdf_no_garbage_characters():
+    """Verify that real Return.pdf with legacy Indic font glyphs does not dump mojibake (Ùæ×, Âîæ)."""
+    from pathlib import Path
+    pdf_path = Path("test_artifacts/Return.pdf")
+    if not pdf_path.exists():
+        pytest.skip("test_artifacts/Return.pdf not present")
+
+    pipeline = get_pipeline()
+    pdf_bytes = pdf_path.read_bytes()
+    verdict = pipeline.process(pdf_bytes, filename="Return.pdf")
+
+    assert verdict.extracted_text is not None
+    # Ensure neither mojibake string appears
+    assert "Ùæ×" not in verdict.extracted_text
+    assert "Âîæ" not in verdict.extracted_text
+    # Ensure real content was extracted cleanly
+    assert "BDMPD7425C" in verdict.extracted_text
+    assert "2025-26" in verdict.extracted_text
+    assert verdict.action == "ALLOW"

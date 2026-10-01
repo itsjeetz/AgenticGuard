@@ -11,6 +11,7 @@ thresholds:
   encoded_boost: 0.05
   instruction_in_data_base_visible: 0.4
   instruction_in_data_base_hidden: 0.65
+  category_thresholds: {}
 high_severity_categories:
 - CREDENTIAL_THEFT
 - TOOL_ABUSE

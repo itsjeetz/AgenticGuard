@@ -12,12 +12,11 @@ from aegis.guard.tool_guard import GuardContext, get_tool_guard
 from aegis.observability.audit import get_audit_logger
 from aegis.observability.metrics import get_metrics_tracker
 from aegis.policy.config import get_policy, save_policy
-from aegis.train import (
+from aegis.review_queue import (
     add_feedback,
     approve_feedback,
     get_review_queue,
     reject_feedback,
-    retrain_model,
 )
 from agent.victim import run_scenario
 from server.demo_mode import is_demo_mode
@@ -104,14 +103,13 @@ def reject_review_item(item_id: int) -> dict[str, Any]:
 
 @router.post("/train")
 def trigger_retraining() -> dict[str, Any]:
-    """Trigger retraining of the ML classifier with approved feedback items."""
+    """Deprecated: ML classifier replaced with Provider-Agnostic LLM Judge."""
     if is_demo_mode():
-        raise HTTPException(status_code=403, detail="Retraining the ML model is disabled in public demo mode.")
-    try:
-        report = retrain_model()
-        return {"status": "success", "report": report}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Retraining failed: {exc}")
+        raise HTTPException(status_code=403, detail="Model retraining is disabled in public demo mode.")
+    return {
+        "status": "deprecated",
+        "message": "The self-trained classifier has been replaced with the Provider-Agnostic LLM Judge. Retraining is not required.",
+    }
 
 
 # -------------------------------------------------------------------------
