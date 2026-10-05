@@ -1,5 +1,6 @@
 """Detection cascade orchestrating Rules (L3a) -> Provider-Agnostic LLM Judge (§5.3, §8.3)."""
 
+import os
 import time
 from typing import Optional
 
@@ -81,7 +82,9 @@ class DetectionCascade:
         }
 
         # High-confidence short-circuit check after L3a (§5.3):
-        # If L3a rules already returned a score >= block_at (e.g. >= 0.85) or high-severity attack on untrusted:
+        # When judge is enabled, comprehensive multi-layer cascade evaluates both rules and LLM judge
+        # unless explicitly configured to short-circuit via ALLOW_SHORT_CIRCUIT=1.
+        allow_short_circuit = os.environ.get("ALLOW_SHORT_CIRCUIT", "0").strip() == "1"
         high_sev_untrusted = (
             ctx.trust == Trust.UNTRUSTED
             and any(
@@ -90,7 +93,7 @@ class DetectionCascade:
                 for f in findings
             )
         )
-        if prior_score >= self.policy.thresholds.block_at or high_sev_untrusted:
+        if allow_short_circuit and (prior_score >= self.policy.thresholds.block_at or high_sev_untrusted):
             if self.enable_judge:
                 layer_status["judge"] = {
                     "status": "skipped_short_circuit",

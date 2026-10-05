@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 560" width="100%" height="100%" style="background:#FFFFFF; font-family:'Inter', sans-serif;">
+  <defs>
+    <filter id="shadow8" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.06"/>
+    </filter>
+  </defs>
+
+  <text x="475" y="35" text-anchor="middle" font-size="18" font-weight="800" fill="#171322">AgenticGuard Codebase Architecture &amp; Folder Map</text>
+  <text x="475" y="55" text-anchor="middle" font-size="12" fill="#7A7585">Component distribution across packages, adapters, runtime guards, API routes, and tests</text>
+
+  <!-- Root Folder Node -->
+  <g transform="translate(40, 80)">
+    <!-- aegis/ -->
+    <rect x="0" y="0" width="280" height="200" rx="8" fill="#FAF9FC" stroke="#A100FF" stroke-width="1.5" filter="url(#shadow8)"/>
+    <rect x="0" y="0" width="280" height="26" rx="8" fill="#EDE8F5"/>
+    <rect x="0" y="18" width="280" height="8" fill="#EDE8F5"/>
+    <text x="12" y="18" font-size="11" font-weight="700" fill="#7000B8">📁 aegis/ (Core Defense-in-Depth)</text>
+    <g transform="translate(12, 34)" font-size="9" fill="#2D283E">
+      <text x="0" y="12"><tspan font-weight="700" fill="#171322">pipeline.py:</tspan> FirewallPipeline coordinator</text>
+      <text x="0" y="26"><tspan font-weight="700" fill="#171322">judge_llm.py:</tspan> ProviderAgnosticJudge (Gemini/Groq)</text>
+      <text x="0" y="40"><tspan font-weight="700" fill="#171322">ingestion/:</tspan> 11 adapters (PDF, DOCX, HTML, Email...)</text>
+      <text x="0" y="54"><tspan font-weight="700" fill="#171322">normalize/:</tspan> MappedText, BFS decoders, Unicode</text>
+      <text x="0" y="68"><tspan font-weight="700" fill="#171322">detection/:</tspan> Rules, Cascade, Fusion, Session</text>
+      <text x="0" y="82"><tspan font-weight="700" fill="#171322">neutralize/:</tspan> Redact on raw text, Nonce envelopes</text>
+      <text x="0" y="96"><tspan font-weight="700" fill="#171322">guard/:</tspan> G1 ToolGuard, G2 Egress, G3 Memory</text>
+      <text x="0" y="110"><tspan font-weight="700" fill="#171322">policy/:</tspan> Thresholds, engine, YAML persistence</text>
+      <text x="0" y="124"><tspan font-weight="700" fill="#171322">observability/:</tspan> Structured audit &amp; metrics</text>
+      <text x="0" y="138"><tspan font-weight="700" fill="#171322">resilience.py:</tspan> fail-closed verdict builder</text>
+      <text x="0" y="152"><tspan font-weight="700" fill="#171322">review_queue.py:</tspan> Human review triage queue</text>
+    </g>
+
+    <!-- server/ -->
+    <rect x="295" y="0" width="280" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow8)"/>
+    <rect x="295" y="0" width="280" height="26" rx="8" fill="#EDE8F5"/>
+    <rect x="295" y="18" width="280" height="8" fill="#EDE8F5"/>
+    <text x="307" y="18" font-size="11" font-weight="700" fill="#5A189A">📁 server/ (FastAPI Service)</text>
+    <g transform="translate(307, 34)" font-size="9" fill="#2D283E">
+      <text x="0" y="12"><tspan font-weight="700" fill="#171322">main.py:</tspan> FastAPI app, pre-flight port bind check,</text>
+      <text x="0" y="24" fill="#554F62">  DevStaticFiles, versioned index rendering</text>
+      <text x="0" y="42"><tspan font-weight="700" fill="#171322">routes_health.py:</tspan> GET /api/health</text>
+      <text x="0" y="54" fill="#554F62">  Capabilities, OCR check, Gemini reporting</text>
+      <text x="0" y="72"><tspan font-weight="700" fill="#171322">routes_inspect.py:</tspan> POST /api/inspect, /neutralize</text>
+      <text x="0" y="84" fill="#554F62">  Multipart file uploads and JSON payloads</text>
+      <text x="0" y="102"><tspan font-weight="700" fill="#171322">routes_ops.py:</tspan> Operational endpoints</text>
+      <text x="0" y="114" fill="#554F62">  Audit, metrics, policy PUT, guards, eval, sandbox</text>
+      <text x="0" y="132"><tspan font-weight="700" fill="#171322">demo_mode.py:</tspan> Public demo rate limiter,</text>
+      <text x="0" y="144" fill="#554F62">  daily LLM call quota manager (200/day)</text>
+    </g>
+
+    <!-- static/ -->
+    <rect x="590" y="0" width="280" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow8)"/>
+    <rect x="590" y="0" width="280" height="26" rx="8" fill="#EDE8F5"/>
+    <rect x="590" y="18" width="280" height="8" fill="#EDE8F5"/>
+    <text x="602" y="18" font-size="11" font-weight="700" fill="#5A189A">📁 static/ (Cyber-SOC Dashboard)</text>
+    <g transform="translate(602, 34)" font-size="9" fill="#2D283E">
+      <text x="0" y="12"><tspan font-weight="700" fill="#171322">index.html:</tspan> 5 tabs, preset selector,</text>
+      <text x="0" y="24" fill="#554F62">  dropzone, 9-vector panel, 3-pane viewer</text>
+      <text x="0" y="44"><tspan font-weight="700" fill="#171322">style.css:</tspan> Clean light theme with</text>
+      <text x="0" y="56" fill="#554F62">  rgb(161, 0, 255) purple accent, dark mode</text>
+      <text x="0" y="76"><tspan font-weight="700" fill="#171322">app.js:</tspan> Pure vanilla JavaScript</text>
+      <text x="0" y="88" fill="#554F62">  Real API calls, localStorage theme persistence,</text>
+      <text x="0" y="100" fill="#554F62">  interactive charts, latency meter, ASR demo</text>
+    </g>
+
+    <!-- Row 2 -->
+    <!-- agent/ -->
+    <rect x="0" y="220" width="280" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow8)"/>
+    <rect x="0" y="220" width="280" height="26" rx="8" fill="#EDE8F5"/>
+    <rect x="0" y="238" width="280" height="8" fill="#EDE8F5"/>
+    <text x="12" y="238" font-size="11" font-weight="700" fill="#5A189A">📁 agent/ (Victim Agent &amp; Sandbox)</text>
+    <g transform="translate(12, 254)" font-size="9" fill="#2D283E">
+      <text x="0" y="12"><tspan font-weight="700" fill="#171322">victim.py:</tspan> VictimAgent with ReAct loop</text>
+      <text x="0" y="24" fill="#554F62">  Mock SQLite DB, isolated sandbox tools</text>
+      <text x="0" y="42"><tspan font-weight="700" fill="#171322">scenarios/__init__.py:</tspan> 12 benchmarks</text>
+      <text x="0" y="54" fill="#554F62">  S1–S9: 9 attack scenarios across vectors</text>
+      <text x="0" y="66" fill="#554F62">  B1–B3: Benign utility tasks verifying</text>
+      <text x="0" y="78" fill="#554F62">  100% utility on clean corporate inputs</text>
+    </g>
+
+    <!-- eval/ & tests/ -->
+    <rect x="295" y="220" width="280" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow8)"/>
+    <rect x="295" y="220" width="280" height="26" rx="8" fill="#EDE8F5"/>
+    <rect x="295" y="238" width="280" height="8" fill="#EDE8F5"/>
+    <text x="307" y="238" font-size="11" font-weight="700" fill="#5A189A">📁 eval/ &amp; tests/ (Quality &amp; Claims)</text>
+    <g transform="translate(307, 254)" font-size="9" fill="#2D283E">
+      <text x="0" y="12"><tspan font-weight="700" fill="#171322">eval/claims.py:</tspan> Pre-registered claims verification</text>
+      <text x="0" y="24" fill="#554F62">  F3, D2, D3 verification strictly from measurements</text>
+      <text x="0" y="42"><tspan font-weight="700" fill="#171322">eval/benchmark.py:</tspan> Benchmark test suite</text>
+      <text x="0" y="54"><tspan font-weight="700" fill="#171322">eval/redteam.py:</tspan> 1,050 adversarial bypasses</text>
+      <text x="0" y="68"><tspan font-weight="700" fill="#171322">tests/ (21 suites):</tspan> Unit &amp; integration tests</text>
+      <text x="0" y="80" fill="#554F62">  Adapters, MappedText, Rules, Judge, Guards</text>
+    </g>
+
+    <!-- scripts/ & config/ -->
+    <rect x="590" y="220" width="280" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow8)"/>
+    <rect x="590" y="220" width="280" height="26" rx="8" fill="#EDE8F5"/>
+    <rect x="590" y="238" width="280" height="8" fill="#EDE8F5"/>
+    <text x="602" y="238" font-size="11" font-weight="700" fill="#5A189A">📁 scripts/, config/ &amp; docs/</text>
+    <g transform="translate(602, 254)" font-size="9" fill="#2D283E">
+      <text x="0" y="12"><tspan font-weight="700" fill="#171322">config/policy.yaml:</tspan> Active runtime configuration</text>
+      <text x="0" y="30"><tspan font-weight="700" fill="#171322">scripts/check_llm.py:</tspan> Multi-provider diagnostics</text>
+      <text x="0" y="44"><tspan font-weight="700" fill="#171322">scripts/check_gemini.py:</tspan> Google Gemini verify</text>
+      <text x="0" y="58"><tspan font-weight="700" fill="#171322">scripts/show_traces.py:</tspan> Pipeline trace logger</text>
+      <text x="0" y="72"><tspan font-weight="700" fill="#171322">docs/feature_inventory.md:</tspan> Master checklist</text>
+      <text x="0" y="86"><tspan font-weight="700" fill="#171322">docs/ARCHITECTURE.md:</tspan> Technical specification</text>
+    </g>
+  </g>
+</svg>

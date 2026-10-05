@@ -1,0 +1,143 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 560" width="100%" height="100%" style="background:#FFFFFF; font-family:'Inter', sans-serif;">
+  <defs>
+    <filter id="shadow4" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.06"/>
+    </filter>
+    <marker id="arrow4" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#A100FF"/>
+    </marker>
+  </defs>
+
+  <text x="475" y="35" text-anchor="middle" font-size="18" font-weight="800" fill="#171322">L1 Format Ingestion Flow &amp; Extraction Fallbacks</text>
+  <text x="475" y="55" text-anchor="middle" font-size="12" fill="#7A7585">Carrier sniffing, format-aware parsing, hidden text extraction, and graceful degradation</text>
+
+  <!-- Inbound Raw File -->
+  <g transform="translate(360, 80)">
+    <rect width="230" height="50" rx="8" fill="#F5EEFF" stroke="#A100FF" stroke-width="2" filter="url(#shadow4)"/>
+    <text x="115" y="25" text-anchor="middle" font-size="11.5" font-weight="700" fill="#7000B8">Inbound Raw Content / File</text>
+    <text x="115" y="40" text-anchor="middle" font-size="9.5" fill="#5A189A">Bytes stream or UTF-8 text string</text>
+  </g>
+
+  <!-- Down Arrow to Sniffer -->
+  <path d="M 475 130 L 475 160" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow4)"/>
+
+  <!-- Format Dispatcher -->
+  <g transform="translate(330, 165)">
+    <polygon points="145,0 290,35 145,70 0,35" fill="#FAF9FC" stroke="#A100FF" stroke-width="1.5" filter="url(#shadow4)"/>
+    <text x="145" y="32" text-anchor="middle" font-size="11" font-weight="700" fill="#171322">Ingestion Registry</text>
+    <text x="145" y="47" text-anchor="middle" font-size="9.5" fill="#7A7585">Sniff MIME / Magic Bytes / Ext</text>
+  </g>
+
+  <!-- 4 Main Adapter Branches -->
+  <!-- Branch 1: PDF -->
+  <path d="M 330 200 L 140 200 L 140 255" stroke="#A100FF" stroke-width="1.5" marker-end="url(#arrow4)"/>
+  <!-- Branch 2: DOCX -->
+  <path d="M 380 235 L 380 255" stroke="#A100FF" stroke-width="1.5" marker-end="url(#arrow4)"/>
+  <!-- Branch 3: HTML / Web -->
+  <path d="M 570 235 L 570 255" stroke="#A100FF" stroke-width="1.5" marker-end="url(#arrow4)"/>
+  <!-- Branch 4: Email -->
+  <path d="M 620 200 L 810 200 L 810 255" stroke="#A100FF" stroke-width="1.5" marker-end="url(#arrow4)"/>
+
+  <!-- Card 1: PDF Adapter Details -->
+  <g transform="translate(40, 260)">
+    <rect width="200" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow4)"/>
+    <rect width="200" height="24" rx="8" fill="#EDE8F5"/>
+    <rect y="16" width="200" height="8" fill="#EDE8F5"/>
+    <text x="10" y="17" font-size="10.5" font-weight="700" fill="#5A189A">PDF Adapter (PdfAdapter)</text>
+    
+    <g transform="translate(10, 34)" font-size="9" fill="#2D283E">
+      <text x="0" y="12" font-weight="700" fill="#171322">1. PyMuPDF (fitz):</text>
+      <text x="0" y="24" fill="#554F62">• Extracts text coordinates</text>
+      <text x="0" y="36" fill="#554F62">• Flags white font (#FFFFFF)</text>
+      <text x="0" y="48" fill="#554F62">• Tiny fonts (≤ 2pt)</text>
+      <text x="0" y="60" fill="#554F62">• Metadata title/author/annots</text>
+
+      <text x="0" y="78" font-weight="700" fill="#171322">2. Fallback: pypdf:</text>
+      <text x="0" y="90" fill="#554F62">• Used if fitz extract empty</text>
+
+      <text x="0" y="108" font-weight="700" fill="#171322">3. Fallback: Tesseract OCR:</text>
+      <text x="0" y="120" fill="#554F62">• Pixmap render of pages</text>
+
+      <rect y="132" width="180" height="26" rx="4" fill="#FEE2E2" stroke="#F87171"/>
+      <text x="6" y="145" font-weight="700" font-size="8.5" fill="#991B1B">Unreadable PDF Fail-Closed:</text>
+      <text x="6" y="155" font-size="8" fill="#991B1B">If still no text → Flag unreadable_pdf</text>
+    </g>
+  </g>
+
+  <!-- Card 2: DOCX Adapter -->
+  <g transform="translate(260, 260)">
+    <rect width="200" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow4)"/>
+    <rect width="200" height="24" rx="8" fill="#EDE8F5"/>
+    <rect y="16" width="200" height="8" fill="#EDE8F5"/>
+    <text x="10" y="17" font-size="10.5" font-weight="700" fill="#5A189A">Word Docx (DocxAdapter)</text>
+
+    <g transform="translate(10, 34)" font-size="9" fill="#2D283E">
+      <text x="0" y="12" font-weight="700" fill="#171322">WordprocessingML XML:</text>
+      <text x="0" y="26" fill="#554F62">• Validates zip boundaries</text>
+      <text x="0" y="40" fill="#554F62">• Inspects word/document.xml</text>
+      
+      <text x="0" y="60" font-weight="700" fill="#EA580C">Hidden Run Detection:</text>
+      <text x="0" y="74" fill="#7C2D12">• &lt;w:vanish/&gt; hidden text</text>
+      <text x="0" y="88" fill="#7C2D12">• White color &lt;w:color val="FFF"/&gt;</text>
+      <text x="0" y="102" fill="#7C2D12">• 1pt font &lt;w:sz val="2"/&gt;</text>
+
+      <text x="0" y="122" font-weight="700" fill="#171322">Comments &amp; Metadata:</text>
+      <text x="0" y="136" fill="#554F62">• word/comments.xml</text>
+      <text x="0" y="150" fill="#554F62">• docProps/core.xml author</text>
+    </g>
+  </g>
+
+  <!-- Card 3: HTML / Web Adapter -->
+  <g transform="translate(480, 260)">
+    <rect width="200" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow4)"/>
+    <rect width="200" height="24" rx="8" fill="#EDE8F5"/>
+    <rect y="16" width="200" height="8" fill="#EDE8F5"/>
+    <text x="10" y="17" font-size="10.5" font-weight="700" fill="#5A189A">HTML / Web (HtmlAdapter)</text>
+
+    <g transform="translate(10, 34)" font-size="9" fill="#2D283E">
+      <text x="0" y="12" font-weight="700" fill="#171322">BeautifulSoup DOM Parser:</text>
+      <text x="0" y="26" fill="#554F62">• Visible body text extraction</text>
+      <text x="0" y="40" fill="#554F62">• Strips script/style tags</text>
+
+      <text x="0" y="60" font-weight="700" fill="#EA580C">CSS Concealment Checks:</text>
+      <text x="0" y="74" fill="#7C2D12">• display: none, hidden</text>
+      <text x="0" y="88" fill="#7C2D12">• visibility: hidden</text>
+      <text x="0" y="102" fill="#7C2D12">• opacity: 0</text>
+      <text x="0" y="116" fill="#7C2D12">• font-size: 0px or 1px</text>
+      <text x="0" y="130" fill="#7C2D12">• left: -9999px (offscreen)</text>
+
+      <text x="0" y="148" font-weight="700" fill="#171322">HTML Comments:</text>
+      <text x="0" y="160" fill="#554F62">• &lt;!-- payload --&gt; flagged</text>
+    </g>
+  </g>
+
+  <!-- Card 4: Email Adapter -->
+  <g transform="translate(700, 260)">
+    <rect width="210" height="200" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow4)"/>
+    <rect width="210" height="24" rx="8" fill="#EDE8F5"/>
+    <rect y="16" width="210" height="8" fill="#EDE8F5"/>
+    <text x="10" y="17" font-size="10.5" font-weight="700" fill="#5A189A">Email Adapter (EmailAdapter)</text>
+
+    <g transform="translate(10, 34)" font-size="9" fill="#2D283E">
+      <text x="0" y="12" font-weight="700" fill="#171322">MIME Structure Analysis:</text>
+      <text x="0" y="26" fill="#554F62">• Multipart boundary splitting</text>
+      <text x="0" y="40" fill="#554F62">• text/plain &amp; text/html body</text>
+      <text x="0" y="54" fill="#554F62">• Suspicious header scans</text>
+
+      <text x="0" y="74" font-weight="700" fill="#171322">Nested Attachment Triage:</text>
+      <text x="0" y="88" fill="#554F62">• Recurses into PDF attachments</text>
+      <text x="0" y="102" fill="#554F62">• Recurses into DOCX files</text>
+      <text x="0" y="116" fill="#554F62">• OCR scan on image attachments</text>
+
+      <text x="0" y="136" font-weight="700" fill="#7000B8">Higher Untrusted Multiplier:</text>
+      <text x="0" y="150" fill="#5A189A">• Channel multiplier 1.20x applied</text>
+    </g>
+  </g>
+
+  <!-- Bottom Output: Standard Segment Stream -->
+  <g transform="translate(180, 485)">
+    <rect width="590" height="50" rx="8" fill="#FFFFFF" stroke="#16A34A" stroke-width="1.5" filter="url(#shadow4)"/>
+    <text x="295" y="22" text-anchor="middle" font-size="11" font-weight="700" fill="#16A34A">Standardized Output: Stream of Segment Objects</text>
+    <text x="295" y="38" text-anchor="middle" font-size="9.5" fill="#2D283E">Segment(id, text, origin="visible|hidden|metadata|comment|ocr", location, hidden_reason)</text>
+  </g>
+</svg>

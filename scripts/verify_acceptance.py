@@ -86,7 +86,11 @@ async def run_acceptance_tests():
         # Select benign preset or enter benign text
         await page.select_option("#selectPreset", "BENIGN_HARD_NEGATIVE")
         await page.click("#btnInspect")
-        await page.wait_for_timeout(1500)
+        await page.wait_for_selector(
+            "#actionBadge:not(:has-text('INSPECTING...')):not(:has-text('STANDBY'))",
+            timeout=15000,
+        )
+        await page.wait_for_timeout(300)
 
         action_text = (await page.inner_text("#actionBadge")).strip()
         risk_text = (await page.inner_text("#riskValue")).strip()
@@ -115,7 +119,11 @@ async def run_acceptance_tests():
         # Select INSTRUCTION_OVERRIDE preset
         await page.select_option("#selectPreset", "INSTRUCTION_OVERRIDE")
         await page.click("#btnInspect")
-        await page.wait_for_timeout(1500)
+        await page.wait_for_selector(
+            "#actionBadge:not(:has-text('INSPECTING...')):not(:has-text('STANDBY'))",
+            timeout=15000,
+        )
+        await page.wait_for_timeout(300)
 
         inj_action = (await page.inner_text("#actionBadge")).strip()
         inj_risk = (await page.inner_text("#riskValue")).strip()
@@ -146,7 +154,11 @@ async def run_acceptance_tests():
         # 5a: Native text PDF
         text_pdf = Path("test_artifacts/text_sample.pdf").resolve()
         await page.set_input_files("#fileInput", str(text_pdf))
-        await page.wait_for_timeout(1500)
+        await page.wait_for_selector(
+            "#actionBadge:not(:has-text('INSPECTING...')):not(:has-text('STANDBY'))",
+            timeout=15000,
+        )
+        await page.wait_for_timeout(300)
 
         pdf_extracted = await page.input_value("#textInput")
         pdf_action = (await page.inner_text("#actionBadge")).strip()

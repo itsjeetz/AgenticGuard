@@ -20,7 +20,7 @@ This changelog records the architectural and user-interface modifications transi
 - Removed the top status strip pills (OCR, ML Classifier, LLM Judge, Victim Agent, and manual refresh button) from `static/index.html`.
 - Removed corresponding status-polling JavaScript and legacy CSS rules (`.status-bar`, `.status-chip`, `.btn-refresh-health`).
 - Retained backend `/api/health` endpoints intact.
-- Retained the **PUBLIC DEMO MODE** notification banner (`#demoBanner`) with rate limits and quota tracking.
+- Retained the top info bar (`#demoBanner`) with rate limits and quota tracking.
 
 ### 3. Per-Attack-Type Detection Panel (9 Vectors)
 - Replaced the previous Category Scores block with a dedicated **Attack Type Detection** panel on the homepage/Inspector tab.

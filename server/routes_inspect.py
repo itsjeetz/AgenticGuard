@@ -27,6 +27,12 @@ async def inspect_content(request: Request) -> Verdict:
     pipeline = get_pipeline()
     content_type = request.headers.get("content-type", "")
 
+    bypass_cache = (
+        request.headers.get("cache-control") == "no-cache"
+        or request.headers.get("x-bypass-cache") == "1"
+        or request.query_params.get("fresh") == "1"
+    )
+
     try:
         if "application/json" in content_type:
             body = await request.json()
@@ -37,6 +43,7 @@ async def inspect_content(request: Request) -> Verdict:
                 source=payload.source,
                 session_id=payload.session_id,
                 neutralize_content=False,
+                bypass_cache=bypass_cache,
             )
         elif "multipart/form-data" in content_type:
             form = await request.form()
@@ -55,6 +62,7 @@ async def inspect_content(request: Request) -> Verdict:
                     filename=filename,
                     session_id=str(session_id) if session_id else None,
                     neutralize_content=False,
+                    bypass_cache=bypass_cache,
                 )
 
             content_field = form.get("content")
@@ -65,6 +73,7 @@ async def inspect_content(request: Request) -> Verdict:
                     source=src,
                     session_id=str(session_id) if session_id else None,
                     neutralize_content=False,
+                    bypass_cache=bypass_cache,
                 )
             raise ValueError("No file or content provided in multipart request")
         else:
@@ -87,6 +96,12 @@ async def neutralize_content(request: Request) -> Verdict:
     pipeline = get_pipeline()
     content_type = request.headers.get("content-type", "")
 
+    bypass_cache = (
+        request.headers.get("cache-control") == "no-cache"
+        or request.headers.get("x-bypass-cache") == "1"
+        or request.query_params.get("fresh") == "1"
+    )
+
     try:
         if "application/json" in content_type:
             body = await request.json()
@@ -97,6 +112,7 @@ async def neutralize_content(request: Request) -> Verdict:
                 source=payload.source,
                 session_id=payload.session_id,
                 neutralize_content=True,
+                bypass_cache=bypass_cache,
             )
         elif "multipart/form-data" in content_type:
             form = await request.form()
@@ -115,6 +131,7 @@ async def neutralize_content(request: Request) -> Verdict:
                     filename=filename,
                     session_id=str(session_id) if session_id else None,
                     neutralize_content=True,
+                    bypass_cache=bypass_cache,
                 )
 
             content_field = form.get("content")
@@ -125,6 +142,7 @@ async def neutralize_content(request: Request) -> Verdict:
                     source=src,
                     session_id=str(session_id) if session_id else None,
                     neutralize_content=True,
+                    bypass_cache=bypass_cache,
                 )
             raise ValueError("No file or content provided in multipart request")
         else:

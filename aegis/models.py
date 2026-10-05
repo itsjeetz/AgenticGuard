@@ -98,6 +98,8 @@ class Verdict(BaseModel):
     timings_ms: dict[str, float] = Field(default_factory=dict)
     content_sha256: str
     error: str | None = None
+    daily_llm_calls_remaining: int | None = None
+    daily_llm_calls_limit: int | None = None
 
 
 class HealthResponse(BaseModel):
@@ -124,3 +126,4 @@ class HealthResponse(BaseModel):
     llm_judge_provider: str = "fallback (rules_only)"
     llm_judge_status: str = "fallback:rules_only"
     llm_providers_configured: list[str] = Field(default_factory=list)
+    providers: dict[str, dict[str, Any]] = Field(default_factory=dict)

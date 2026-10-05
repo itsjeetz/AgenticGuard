@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 520" width="100%" height="100%" style="background:#FFFFFF; font-family:'Inter', sans-serif;">
+  <defs>
+    <filter id="shadow2" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.06"/>
+    </filter>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A100FF"/>
+      <stop offset="100%" stop-color="#6A00B0"/>
+    </linearGradient>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#A100FF"/>
+    </marker>
+  </defs>
+
+  <text x="475" y="35" text-anchor="middle" font-size="18" font-weight="800" fill="#171322">AgenticGuard Request Lifecycle</text>
+  <text x="475" y="55" text-anchor="middle" font-size="12" fill="#7A7585">Tracing an inspection event from UI button click to multi-layer execution and DOM rendering</text>
+
+  <!-- Step 1: User Action -->
+  <g transform="translate(40, 85)">
+    <rect width="250" height="90" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow2)"/>
+    <rect width="250" height="26" rx="8" fill="#EDE8F5"/>
+    <rect y="18" width="250" height="8" fill="#EDE8F5"/>
+    <text x="15" y="18" font-size="11" font-weight="700" fill="#5A189A">1. Client Interaction (Browser)</text>
+    <text x="15" y="44" font-size="10.5" fill="#2D283E">• User selects Preset or types text</text>
+    <text x="15" y="60" font-size="10.5" fill="#2D283E">• Or drags &amp; drops file in dropzone</text>
+    <text x="15" y="76" font-size="10.5" font-weight="600" fill="#A100FF">• User clicks [Inspect &amp; Neutralize]</text>
+  </g>
+
+  <path d="M 290 130 L 340 130" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <!-- Step 2: REST Call -->
+  <g transform="translate(345, 85)">
+    <rect width="260" height="90" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow2)"/>
+    <rect width="260" height="26" rx="8" fill="#EDE8F5"/>
+    <rect y="18" width="260" height="8" fill="#EDE8F5"/>
+    <text x="15" y="18" font-size="11" font-weight="700" fill="#5A189A">2. HTTP POST Transmission</text>
+    <text x="15" y="44" font-size="10" font-family="monospace" fill="#171322">POST /api/neutralize</text>
+    <text x="15" y="60" font-size="10" fill="#554F62">• JSON body or multipart/form-data</text>
+    <text x="15" y="76" font-size="10" fill="#554F62">• Starlette DemoRateLimit check (30/min)</text>
+  </g>
+
+  <path d="M 605 130 L 655 130" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <!-- Step 3: Cache Check -->
+  <g transform="translate(660, 85)">
+    <rect width="250" height="90" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow2)"/>
+    <rect width="250" height="26" rx="8" fill="#EDE8F5"/>
+    <rect y="18" width="250" height="8" fill="#EDE8F5"/>
+    <text x="15" y="18" font-size="11" font-weight="700" fill="#5A189A">3. LRU Verdict Cache (§8)</text>
+    <text x="15" y="44" font-size="10.5" fill="#2D283E">• Compute SHA-256 payload hash</text>
+    <text x="15" y="60" font-size="10" font-weight="600" fill="#16A34A">• Hit? Return instant verdict (&lt; 1ms)</text>
+    <text x="15" y="76" font-size="10" fill="#DC2626">• Miss? Proceed into Cascade Pipeline</text>
+  </g>
+
+  <!-- Connect Row 1 to Row 2 -->
+  <path d="M 785 175 L 785 220 L 785 235" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <!-- Step 4: Pipeline Execution Box (Wide) -->
+  <g transform="translate(40, 240)">
+    <rect width="870" height="135" rx="8" fill="#FFFFFF" stroke="#A100FF" stroke-width="2" filter="url(#shadow2)"/>
+    <rect width="870" height="26" rx="8" fill="url(#grad2)"/>
+    <rect y="18" width="870" height="8" fill="url(#grad2)"/>
+    <text x="20" y="18" font-size="11" font-weight="700" fill="#FFFFFF">4. Pipeline Execution: FirewallPipeline.process() [L1 – L5]</text>
+
+    <g transform="translate(15, 38)">
+      <!-- L1 -->
+      <g transform="translate(0, 0)">
+        <rect x="0" y="0" width="155" height="80" rx="6" fill="#FAF9FC" stroke="#D4CFDE"/>
+        <text x="10" y="18" font-size="10.5" font-weight="700" fill="#171322">L1 Ingestion</text>
+        <text x="10" y="33" font-size="9" fill="#554F62">• Format sniffing</text>
+        <text x="10" y="46" font-size="9" fill="#554F62">• Hidden text extract</text>
+        <text x="10" y="59" font-size="9" fill="#554F62">• Segment generation</text>
+        <text x="10" y="72" font-size="8.5" font-weight="600" fill="#A100FF">Time: ~0.1 - 4ms</text>
+      </g>
+
+      <!-- L2 -->
+      <g transform="translate(170, 0)">
+        <rect x="0" y="0" width="155" height="80" rx="6" fill="#FAF9FC" stroke="#D4CFDE"/>
+        <text x="10" y="18" font-size="10.5" font-weight="700" fill="#171322">L2 Normalization</text>
+        <text x="10" y="33" font-size="9" fill="#554F62">• MappedText tracking</text>
+        <text x="10" y="46" font-size="9" fill="#554F62">• BFS variant tree</text>
+        <text x="10" y="59" font-size="9" fill="#554F62">• Unicode / decoders</text>
+        <text x="10" y="72" font-size="8.5" font-weight="600" fill="#A100FF">Time: ~1 - 5ms</text>
+      </g>
+
+      <!-- L3 -->
+      <g transform="translate(340, 0)">
+        <rect x="0" y="0" width="185" height="80" rx="6" fill="#F5EEFF" stroke="#A100FF"/>
+        <text x="10" y="18" font-size="10.5" font-weight="700" fill="#7000B8">L3 Detection Cascade</text>
+        <text x="10" y="33" font-size="9" fill="#554F62">• L3a Rules (9 categories)</text>
+        <text x="10" y="46" font-size="9" fill="#554F62">• Instruction-in-Data detector</text>
+        <text x="10" y="59" font-size="9" fill="#554F62">• L3c Judge [0.35, 0.75]</text>
+        <text x="10" y="72" font-size="8.5" font-weight="700" fill="#A100FF">Judge: ~400ms / Rules: 2ms</text>
+      </g>
+
+      <!-- L4 -->
+      <g transform="translate(540, 0)">
+        <rect x="0" y="0" width="145" height="80" rx="6" fill="#FAF9FC" stroke="#D4CFDE"/>
+        <text x="10" y="18" font-size="10.5" font-weight="700" fill="#171322">L4 Fusion &amp; Policy</text>
+        <text x="10" y="33" font-size="9" fill="#554F62">• Multi-layer consensus</text>
+        <text x="10" y="46" font-size="9" fill="#554F62">• Noisy-OR combined risk</text>
+        <text x="10" y="59" font-size="9" fill="#554F62">• Policy thresholds</text>
+        <text x="10" y="72" font-size="8.5" font-weight="600" fill="#A100FF">Time: ~0.1 - 0.5ms</text>
+      </g>
+
+      <!-- L5 -->
+      <g transform="translate(700, 0)">
+        <rect x="0" y="0" width="140" height="80" rx="6" fill="#FAF9FC" stroke="#D4CFDE"/>
+        <text x="10" y="18" font-size="10.5" font-weight="700" fill="#171322">L5 Neutralizer</text>
+        <text x="10" y="33" font-size="9" fill="#554F62">• Raw span replacement</text>
+        <text x="10" y="46" font-size="9" fill="#554F62">• Delimiter escaping</text>
+        <text x="10" y="59" font-size="9" fill="#554F62">• Nonce wrapping</text>
+        <text x="10" y="72" font-size="8.5" font-weight="600" fill="#A100FF">Time: ~0.05 - 1ms</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- Connect Row 2 to Row 3 -->
+  <path d="M 475 375 L 475 410" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow2)"/>
+
+  <!-- Step 5: Frontend DOM Updates -->
+  <g transform="translate(40, 415)">
+    <rect width="870" height="85" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow2)"/>
+    <rect width="870" height="24" rx="8" fill="#EDE8F5"/>
+    <rect y="16" width="870" height="8" fill="#EDE8F5"/>
+    <text x="15" y="17" font-size="11" font-weight="700" fill="#5A189A">5. Frontend DOM Rendering (app.js)</text>
+    
+    <g transform="translate(15, 34)" font-size="10" fill="#2D283E">
+      <text x="0" y="14"><tspan font-weight="700" fill="#A100FF">1. Verdict Badge:</tspan> Updates action badge (ALLOW / SANITIZE / BLOCK / ESCALATE) and animates risk progress bar</text>
+      <text x="0" y="29"><tspan font-weight="700" fill="#A100FF">2. 9-Vector Panel:</tspan> Highlights detected vectors with #A100FF badges; displays exact percentage scores</text>
+      <text x="0" y="44"><tspan font-weight="700" fill="#A100FF">3. Latency Pills:</tspan> Renders individual L1, L2, L3a, L3b, L3c, L4, L5 millisecond timings and total pipeline time</text>
+    </g>
+  </g>
+</svg>

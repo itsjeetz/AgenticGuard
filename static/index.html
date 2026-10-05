@@ -11,7 +11,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1790887427">
+  <link rel="stylesheet" href="style.css?v=1791211684">
   <script>
     (function () {
       var saved = localStorage.getItem("agenticguard_theme") || "light";
@@ -60,17 +60,14 @@
       </div>
     </header>
 
-    <!-- Demo Mode Banner -->
-    <aside class="demo-mode-banner hidden" id="demoBanner" aria-label="Demo mode announcement">
+    <!-- Top Info Bar -->
+    <aside class="demo-mode-banner" id="demoBanner" aria-label="Operational info bar">
       <div class="demo-banner-inner">
-        <span class="demo-badge">🛡️ PUBLIC DEMO MODE</span>
         <span class="demo-item" id="demoRateLimit">Rate Limit: 30 req/min (5 req/min for agent)</span>
         <span class="demo-dot">•</span>
         <span class="demo-item">Max Upload: 2 MB</span>
         <span class="demo-dot">•</span>
         <span class="demo-item" id="demoLlmQuota">Daily LLM Quota: 200/200</span>
-        <span class="demo-dot">•</span>
-        <span class="demo-item demo-sub">Policy edit & retraining disabled</span>
       </div>
     </aside>
 
@@ -172,9 +169,19 @@
         <!-- Input Area & Dropzone -->
         <div class="inspector-input-grid">
           <div class="input-card">
-            <div class="card-header">
-              <h3>Content Input</h3>
-              <span class="hint">Type or paste text, or drag-and-drop a file below</span>
+            <div class="card-header content-input-header">
+              <div class="header-title-group">
+                <h3>Content Input</h3>
+                <span class="hint">Type or paste text, or drag-and-drop a file below</span>
+              </div>
+              <button type="button" class="btn-clear" id="btnClearInput" aria-label="Clear content input and reset inspector">
+                <svg class="clear-icon" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"></path>
+                  <path d="M22 21H7"></path>
+                  <path d="m5 11 9 9"></path>
+                </svg>
+                <span>Clear</span>
+              </button>
             </div>
             <textarea id="textInput" class="soc-textarea"
               placeholder="Enter content to inspect or select a preset above..."></textarea>
@@ -211,6 +218,7 @@
                   </div>
                 </div>
               </div>
+              <div class="degraded-chip" id="degradedChip" style="display: none;"></div>
             </div>
 
             <!-- 2. Attack Type Detection Dedicated Card -->
@@ -712,9 +720,9 @@
       <div class="soc-footer-content">
         <span class="footer-brand">AgenticGuard &bull; SOC Dashboard</span>
         <span class="footer-sep">•</span>
-        <span class="build-version-tag" id="footerBuildLabel">BUILD: <span id="buildVersionValue">v0.1.0-dev.887655</span></span>
+        <span class="build-version-tag" id="footerBuildLabel">BUILD: <span id="buildVersionValue">v0.1.0-dev.212353</span></span>
         <span class="footer-sep">•</span>
-        <span class="llm-judge-tag" id="footerLlmJudge">LLM judge: fallback (rules_only)</span>
+        <span class="llm-judge-tag" id="footerLlmJudge">LLM judge: groq</span>
         <span class="footer-sep">•</span>
         <span class="footer-sub">Prompt Injection Firewall • Defense-in-Depth</span>
       </div>
@@ -724,7 +732,7 @@
     <div class="soc-toast" id="socToast"></div>
   </div>
 
-  <script src="app.js?v=1790887655"></script>
+  <script src="app.js?v=1791212353"></script>
 </body>
 
 </html>

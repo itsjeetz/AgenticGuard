@@ -48,16 +48,24 @@ pip install -r requirements.txt
 # Copy example environment configuration
 cp .env.example .env
 ```
-Open `.env` in your text editor and add your Google Gemini API key:
+Open `.env` in your text editor and configure your LLM providers:
 ```ini
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.5-flash
-```
-*(If no API key is provided, AgenticGuard degrades gracefully to offline rules + classifier mode and mock victim agent without crashing.)*
+# Provider Priority: Gemini Key 1 -> Gemini Key 2 -> Groq -> Rules-Only Fallback
+LLM_PROVIDER_ORDER=gemini_1,gemini_2,groq
 
-Verify Gemini API connectivity:
+GEMINI_API_KEY=your_primary_gemini_api_key
+GEMINI_API_KEY_2=your_secondary_gemini_api_key
+GEMINI_MODEL=gemini-2.5-flash
+
+# Groq (groq.com OpenAI-compatible endpoint, NOT xAI Grok)
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile
+```
+*(If no API keys are provided or all remote providers fail/cool down, AgenticGuard degrades gracefully to offline rules-only mode.)*
+
+Verify LLM provider connectivity:
 ```bash
-python scripts/check_gemini.py
+python scripts/check_llm.py
 ```
 
 ### 3. Run the Firewall & Dashboard

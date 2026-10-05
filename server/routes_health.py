@@ -32,7 +32,7 @@ def get_classifier_backend() -> str:
 
 @router.get("/health", response_model=HealthResponse)
 def get_health() -> HealthResponse:
-    """Return health status and capabilities of the firewall."""
+    """Return health status and capabilities of the firewall (§10, §8.4)."""
     from aegis.judge_llm import get_llm_judge
 
     ocr_avail = is_ocr_available()
@@ -40,33 +40,28 @@ def get_health() -> HealthResponse:
     demo_active = is_demo_mode()
     demo_mgr = get_demo_manager()
 
-    # In demo mode, judge is available only if provider is configured AND remaining quota > 0
-    quota_exhausted = False
-    rate_limit = None
-    llm_limit = None
-    llm_used = None
-    llm_rem = None
+    stats = demo_mgr.get_llm_stats()
+    llm_limit = stats["limit"]
+    llm_used = stats["used"]
+    llm_rem = stats["remaining"]
+    quota_exhausted = llm_rem <= 0 and demo_active
+    rate_limit = DEFAULT_GENERAL_LIMIT_PER_MINUTE
 
-    if demo_active:
-        rate_limit = DEFAULT_GENERAL_LIMIT_PER_MINUTE
-        stats = demo_mgr.get_llm_stats()
-        llm_limit = stats["limit"]
-        llm_used = stats["used"]
-        llm_rem = stats["remaining"]
-        if llm_rem <= 0:
-            quota_exhausted = True
-
-    gemini_key_set = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    gemini_1_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
+    gemini_2_key = bool(os.environ.get("GEMINI_API_KEY_2", "").strip())
+    gemini_key_set = gemini_1_key or gemini_2_key
     gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     gemini_avail = gemini_key_set and (not quota_exhausted)
 
     llm_judge = get_llm_judge()
     configured_providers = llm_judge.get_configured_providers()
+    provider_states = llm_judge.get_provider_states()
     judge_avail = (len(configured_providers) > 0 or api_key_set or gemini_key_set) and (not quota_exhausted)
 
-    if judge_avail:
-        active_provider = configured_providers[0] if configured_providers else ("gemini" if gemini_key_set else "anthropic")
-        llm_status = f"ok ({active_provider})"
+    # llm_judge_status is "ok (<provider>)" ONLY after a real successful call
+    if llm_judge.last_provider and llm_judge.last_status and llm_judge.last_status.startswith("ok"):
+        active_provider = llm_judge.last_provider
+        llm_status = llm_judge.last_status
     elif quota_exhausted:
         active_provider = "fallback (quota_exhausted)"
         llm_status = "fallback:quota_exhausted"
@@ -103,4 +98,5 @@ def get_health() -> HealthResponse:
         llm_judge_provider=active_provider,
         llm_judge_status=llm_status,
         llm_providers_configured=configured_providers,
+        providers=provider_states,
     )

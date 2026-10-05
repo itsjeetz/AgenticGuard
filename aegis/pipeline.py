@@ -98,6 +98,7 @@ class FirewallPipeline:
         session_id: str | None = None,
         trust: Trust | None = None,
         neutralize_content: bool = True,
+        bypass_cache: bool = False,
     ) -> Verdict:
         """Process content through L1-L5 layers and return full Verdict."""
         t_start = time.perf_counter()
@@ -119,6 +120,7 @@ class FirewallPipeline:
                 session_id=session_id,
                 trust=trust,
                 neutralize_content=neutralize_content,
+                bypass_cache=bypass_cache,
                 t_start=t_start,
                 timings=timings,
                 layer_status=layer_status,
@@ -145,6 +147,7 @@ class FirewallPipeline:
         session_id: str | None,
         trust: Trust | None,
         neutralize_content: bool,
+        bypass_cache: bool,
         t_start: float,
         timings: dict[str, float],
         layer_status: dict[str, dict],
@@ -160,13 +163,24 @@ class FirewallPipeline:
             neutralize_content,
         ) if session_id is None else None
 
-        if cache_key:
+        if cache_key and not bypass_cache:
             cached = self.cache.get(cache_key)
             if cached:
                 cached_timings = dict(cached.timings_ms)
                 cached_timings["total_pipeline_ms"] = round((time.perf_counter() - t_start) * 1000, 2)
                 cached_timings["total_ms"] = cached_timings["total_pipeline_ms"]
                 cached_timings["cache_hit"] = 1.0
+
+                daily_rem = None
+                daily_lim = None
+                try:
+                    from server.demo_mode import get_demo_manager
+                    stats = get_demo_manager().get_llm_stats()
+                    daily_rem = stats.get("remaining")
+                    daily_lim = stats.get("limit")
+                except Exception:
+                    pass
+
                 verdict = Verdict(
                     request_id=f"req-{secrets.token_hex(6)}",
                     source=cached.source,
@@ -174,14 +188,18 @@ class FirewallPipeline:
                     action=cached.action,
                     risk=cached.risk,
                     category_scores=dict(cached.category_scores),
+                    detected=list(cached.detected),
                     findings=list(cached.findings),
                     degraded=cached.degraded,
                     layer_status=dict(cached.layer_status),
+                    llm_judge_status=cached.llm_judge_status,
                     sanitized_text=cached.sanitized_text,
                     envelope_text=cached.envelope_text,
                     extracted_text=cached.extracted_text,
                     timings_ms=cached_timings,
                     content_sha256=cached.content_sha256,
+                    daily_llm_calls_remaining=daily_rem,
+                    daily_llm_calls_limit=daily_lim,
                 )
                 try:
                     get_audit_logger().log_verdict(verdict, content=content, session_id=session_id)
@@ -224,6 +242,7 @@ class FirewallPipeline:
                 trust=resolved_trust,
                 session_id=session_id,
                 is_hidden=(seg.origin == "hidden"),
+                metadata={"bypass_cache": bypass_cache},
             )
 
             # L3: Run cascade (Rules -> Classifier -> Judge)
@@ -366,6 +385,16 @@ class FirewallPipeline:
         ]
         llm_judge_status = layer_status.get("judge", {}).get("llm_judge_status")
 
+        daily_rem = None
+        daily_lim = None
+        try:
+            from server.demo_mode import get_demo_manager
+            stats = get_demo_manager().get_llm_stats()
+            daily_rem = stats.get("remaining")
+            daily_lim = stats.get("limit")
+        except Exception:
+            pass
+
         verdict = Verdict(
             request_id=request_id,
             source=detected_source,
@@ -383,6 +412,8 @@ class FirewallPipeline:
             extracted_text=extracted_text,
             timings_ms=timings,
             content_sha256=content_sha256,
+            daily_llm_calls_remaining=daily_rem,
+            daily_llm_calls_limit=daily_lim,
         )
 
         # Observability: log audit entry & record metrics (§8.1)
@@ -396,6 +427,15 @@ class FirewallPipeline:
             self.cache.put(cache_key, verdict)
 
         return verdict
+
+    def clear_cache(self) -> None:
+        """Clear both pipeline LRU cache and LLM judge cache."""
+        self.cache.clear()
+        try:
+            from aegis.judge_llm import get_llm_judge
+            get_llm_judge().clear_cache()
+        except Exception:
+            pass
 
 
 _PIPELINE_INSTANCE = FirewallPipeline()

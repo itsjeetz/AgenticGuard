@@ -165,7 +165,7 @@ function initTabs() {
 }
 
 // ---------------------------------------------------------------------------
-// Public Demo Mode Banner & Quotas
+// Top Info Bar & Quotas
 // ---------------------------------------------------------------------------
 async function initDemoBanner() {
   try {
@@ -188,20 +188,21 @@ async function initDemoBanner() {
 
     const demoBanner = el("demoBanner");
     if (demoBanner) {
-      if (data.demo_mode) {
-        demoBanner.classList.remove("hidden");
-        const rateEl = el("demoRateLimit");
-        if (rateEl) {
-          rateEl.textContent = `Rate Limit: ${data.rate_limit_per_minute || 30} req/min (5 req/min for agent)`;
-        }
-        const quotaEl = el("demoLlmQuota");
-        if (quotaEl) {
-          const used = data.daily_llm_calls_used ?? 0;
-          const limit = data.daily_llm_calls_limit ?? 200;
-          const rem = data.daily_llm_calls_remaining ?? (limit - used);
-          quotaEl.textContent = `Daily LLM Quota: ${rem}/${limit} remaining`;
-        }
+      demoBanner.classList.remove("hidden");
+      const rateEl = el("demoRateLimit");
+      if (rateEl) {
+        const rate = data.rate_limit_per_minute || 30;
+        rateEl.textContent = `Rate Limit: ${rate} req/min (5 req/min for agent)`;
+      }
+      const quotaEl = el("demoLlmQuota");
+      if (quotaEl) {
+        const used = data.daily_llm_calls_used ?? 0;
+        const limit = data.daily_llm_calls_limit ?? 200;
+        const rem = data.daily_llm_calls_remaining ?? (limit - used);
+        quotaEl.textContent = `Daily LLM Quota: ${rem}/${limit}`;
+      }
 
+      if (data.demo_mode) {
         const btnSavePolicy = el("btnSavePolicy");
         if (btnSavePolicy) {
           btnSavePolicy.classList.add("btn-disabled-demo");
@@ -214,8 +215,6 @@ async function initDemoBanner() {
           btnRetrain.title = "Model retraining is disabled in public demo mode.";
           btnRetrain.setAttribute("disabled", "true");
         }
-      } else {
-        demoBanner.classList.add("hidden");
       }
     }
 
@@ -312,6 +311,11 @@ function initInspectorTab() {
         if (fileNameDisplay) fileNameDisplay.textContent = "";
       }
     });
+  }
+
+  const btnClear = el("btnClearInput");
+  if (btnClear) {
+    btnClear.addEventListener("click", clearInspector);
   }
 
   if (btnInspect) {
@@ -545,6 +549,74 @@ function resetLayerPills() {
   setElText("totalPipelineTime", "0.00 ms");
 }
 
+let inspectionAbortController = null;
+
+function clearInspector() {
+  // 1. Cancel any in-flight inspection request immediately
+  if (inspectionAbortController) {
+    inspectionAbortController.abort();
+    inspectionAbortController = null;
+  }
+
+  // 2. Empty textarea and re-enable it if read-only after file upload
+  const textInput = el("textInput");
+  if (textInput) {
+    textInput.value = "";
+    textInput.readOnly = false;
+  }
+
+  // 3. Clear selected file, file input value, and filename display
+  selectedFile = null;
+  const fileInput = el("fileInput");
+  if (fileInput) {
+    fileInput.value = "";
+  }
+  const fileNameDisplay = el("fileNameDisplay");
+  if (fileNameDisplay) {
+    fileNameDisplay.textContent = "";
+  }
+
+  // 4. Reset Attack Preset and Carrier / Input Source dropdowns to defaults
+  const selectPreset = el("selectPreset");
+  if (selectPreset) {
+    selectPreset.value = "";
+  }
+  const selectSource = el("selectSource");
+  if (selectSource) {
+    selectSource.value = "";
+  }
+
+  // 5. Reset Firewall Verdict to STANDBY with Combined Risk 0.000, clear req id / sha,
+  // reset all 9 attack vectors to 0% "Not detected" and badge to "9 Vectors Standby",
+  // reset cascade layer pills to "-" and Total Pipeline Time to 0.00 ms
+  resetVerdictToStandby();
+
+  // 6. Clear three output panels to empty states
+  const rawPane = el("rawContentPane");
+  if (rawPane) {
+    rawPane.innerHTML = '<div class="empty-state">Raw content will be rendered here with highlighted attack spans.</div>';
+  }
+  const varPane = el("variantsContentPane");
+  if (varPane) {
+    varPane.innerHTML = '<div class="empty-state">Normalized variants and decoded tokens will appear here.</div>';
+  }
+  const sanPane = el("sanitizedContentPane");
+  if (sanPane) {
+    sanPane.innerHTML = '<div class="empty-state">Sanitized text and nonce envelope spotlighting will appear here.</div>';
+  }
+
+  // 7. Clear any active toast notification
+  const toast = el("socToast");
+  if (toast) {
+    toast.classList.remove("show");
+  }
+
+  // 8. Return focus to textarea
+  if (textInput) {
+    textInput.focus();
+  }
+}
+
 async function runInspection() {
   const textInput = el("textInput");
   const selectSource = el("selectSource");
@@ -555,6 +627,14 @@ async function runInspection() {
     showToast("Please enter text or drop a file to inspect", true);
     return;
   }
+
+  // Cancel any existing in-flight inspection request
+  if (inspectionAbortController) {
+    inspectionAbortController.abort();
+    inspectionAbortController = null;
+  }
+  inspectionAbortController = new AbortController();
+  const currentController = inspectionAbortController;
 
   showToast("Inspecting content through firewall cascade...");
   setVerdictToLoading();
@@ -567,15 +647,23 @@ async function runInspection() {
       if (source) formData.append("source", source);
       res = await fetch("/api/neutralize", {
         method: "POST",
+        headers: { "Cache-Control": "no-cache" },
         body: formData,
+        signal: currentController.signal,
       });
     } else {
       res = await fetch("/api/neutralize", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
         body: JSON.stringify({ content, source }),
+        signal: currentController.signal,
       });
     }
+
+    if (currentController.signal.aborted) return;
 
     if (!res.ok) {
       let errMsg = "Inspection request failed";
@@ -587,6 +675,7 @@ async function runInspection() {
     }
 
     const verdict = await res.json();
+    if (currentController.signal.aborted) return;
 
     // Check if backend returned an error in the Verdict
     if (verdict.error) {
@@ -606,9 +695,17 @@ async function runInspection() {
     renderVerdict(verdict, displayText);
     showToast(`Inspection Complete: Action = ${verdict.action}`);
   } catch (err) {
+    if (err.name === "AbortError" || currentController.signal.aborted) {
+      // Aborted by clear or subsequent request; ignore without error or repainting
+      return;
+    }
     console.warn("Inspection error caught in runInspection:", err);
     setVerdictToError(err.message);
     showToast(err.message, true);
+  } finally {
+    if (inspectionAbortController === currentController) {
+      inspectionAbortController = null;
+    }
   }
 }
 
@@ -649,12 +746,40 @@ function renderVerdict(verdict, originalRawText) {
   if (!verdict) return;
 
   // 1. Action Badge
+  // 1. Action Badge & Offline Amber Chip (§Step 6)
   try {
     const actionBadge = el("actionBadge");
+    const degradedChip = el("degradedChip");
+    const isLlmOffline = Boolean(
+      verdict.degraded ||
+      verdict.llm_judge_status?.startsWith("fallback") ||
+      verdict.layer_status?.judge?.status?.startsWith("degraded")
+    );
+
+    const reason = verdict.layer_status?.judge?.error ||
+      verdict.layer_status?.judge?.status ||
+      verdict.llm_judge_status ||
+      "all providers failed";
+
     if (actionBadge) {
       const act = verdict.action || (verdict.error ? "ERROR" : "STANDBY");
-      actionBadge.textContent = act;
-      actionBadge.className = `action-badge badge-${act.toLowerCase()}`;
+      if (act === "ALLOW" && isLlmOffline) {
+        // Never a plain green ALLOW when LLM is offline (§Step 6)
+        actionBadge.textContent = "ALLOW (DEGRADED)";
+        actionBadge.className = "action-badge badge-degraded";
+      } else {
+        actionBadge.textContent = act;
+        actionBadge.className = `action-badge badge-${act.toLowerCase()}`;
+      }
+    }
+
+    if (degradedChip) {
+      if (isLlmOffline) {
+        degradedChip.textContent = `LLM offline: rules only (${reason})`;
+        degradedChip.style.display = "inline-flex";
+      } else {
+        degradedChip.style.display = "none";
+      }
     }
   } catch (e) {
     console.error("Error rendering action badge:", e);
@@ -718,12 +843,25 @@ function renderVerdict(verdict, originalRawText) {
     const judgeStatus = verdict.llm_judge_status || verdict.layer_status?.judge?.llm_judge_status;
     const judgeProvider = verdict.layer_status?.judge?.provider;
     if (judgeProvider && (judgeStatus?.startsWith("ok") || judgeStatus?.startsWith("cached"))) {
-      updateLlmJudgeFooter(`${judgeProvider} / ${judgeStatus}`);
+      updateLlmJudgeFooter(judgeStatus);
     } else if (judgeStatus) {
       updateLlmJudgeFooter(judgeStatus);
     }
   } catch (e) {
     console.error("Error updating llm judge footer:", e);
+  }
+
+  // 8. Dynamic Quota Counter update from verdict (§10)
+  try {
+    if (verdict.daily_llm_calls_remaining !== undefined && verdict.daily_llm_calls_remaining !== null) {
+      const quotaEl = el("demoLlmQuota");
+      if (quotaEl) {
+        const limit = verdict.daily_llm_calls_limit || 200;
+        quotaEl.textContent = `Daily LLM Quota: ${verdict.daily_llm_calls_remaining}/${limit}`;
+      }
+    }
+  } catch (e) {
+    console.error("Error updating quota counter:", e);
   }
 }
 

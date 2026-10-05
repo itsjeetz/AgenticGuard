@@ -1,8 +1,14 @@
 """Provider-agnostic LLM Judge adapter for OpenAI-compatible endpoints (§5.3c).
 
-Supports Gemini, Groq, Mistral, OpenRouter, and Ollama in prioritized order.
-Enforces JSON mode, temperature 0, untrusted data wrapping, score clamping,
-hash-based caching (TTL 10 min), rate limiting, and graceful fallback.
+Priority order:
+  1. Gemini Key 1 (GEMINI_API_KEY), then Gemini Key 2 (GEMINI_API_KEY_2)
+  2. Groq (GROQ_API_KEY) at https://api.groq.com/openai/v1 with GROQ_MODEL
+  3. Rules-only fallback (rules_only)
+
+Enforces JSON mode (with prompt-fallback for Groq), temperature 0, untrusted data wrapping,
+score clamping, hash-based caching (TTL 10 min), sliding-window rate limiting with Retry-After
+cool-down, session key invalidation (400/401/403), single retry on timeout/5xx, secret masking,
+and graceful zero-crash fallback.
 """
 
 from collections import defaultdict
@@ -12,6 +18,7 @@ import json
 import logging
 import os
 import re
+import socket
 import threading
 import time
 from typing import Any, Optional
@@ -76,9 +83,20 @@ class JudgeScores(BaseModel):
 @dataclass
 class ProviderConfig:
     name: str
+    display_name: str
     base_url: str
     api_key: str
     model: str
+
+
+class ProviderHTTPError(Exception):
+    """Exception carrying HTTP status code, response body, and headers."""
+
+    def __init__(self, status_code: int, body: str, headers: Optional[Any] = None):
+        super().__init__(f"HTTP {status_code}: {body}")
+        self.status_code = status_code
+        self.body = body
+        self.headers = headers
 
 
 # In-memory hash-based cache: sha256 -> (cached_at_timestamp, JudgeScores, provider_name)
@@ -92,69 +110,346 @@ _PROVIDER_TIMESTAMPS: dict[str, list[float]] = defaultdict(list)
 DEFAULT_MAX_RPM = 30
 
 
+def mask_key(key: str) -> str:
+    """Mask API key displaying ONLY the last 4 characters (§Secrets)."""
+    if not key:
+        return ""
+    stripped = key.strip()
+    if len(stripped) <= 4:
+        return "***"
+    return f"...{stripped[-4:]}"
+
+
+def parse_groq_reset_duration(val: str) -> float:
+    """Parse Groq reset duration like '6m0s', '2s', '250ms' into seconds."""
+    if not val:
+        return 0.0
+    val_str = str(val).strip()
+    try:
+        return float(val_str)
+    except ValueError:
+        pass
+
+    total = 0.0
+    m_ms = re.search(r"(\d+(?:\.\d+)?)ms", val_str)
+    if m_ms:
+        total += float(m_ms.group(1)) / 1000.0
+    m_s = re.search(r"(\d+(?:\.\d+)?)s", val_str)
+    if m_s:
+        total += float(m_s.group(1))
+    m_m = re.search(r"(\d+(?:\.\d+)?)m(?!s)", val_str)
+    if m_m:
+        total += float(m_m.group(1)) * 60.0
+    m_h = re.search(r"(\d+(?:\.\d+)?)h", val_str)
+    if m_h:
+        total += float(m_h.group(1)) * 3600.0
+    return total
+
+
 class ProviderAgnosticJudge:
     """Multi-provider LLM Judge calling OpenAI-compatible /chat/completions endpoints."""
 
     def __init__(self):
-        self.default_order = "gemini,groq,mistral,ollama"
-        self.last_status: str = "standby"
+        self.default_order = "gemini,gemini_2,groq"
+        self.last_status: str = "fallback:rules_only"
         self.last_provider: Optional[str] = None
         self.last_error: Optional[str] = None
 
+        # Session invalid keys: on 400, 401, 403, key is marked invalid for session
+        self._session_invalid_providers: set[str] = set()
+
+        # Cooldown timestamps: on 429 or rate limits
+        self._provider_cooldown_until: dict[str, float] = {}
+
+        # Per-provider runtime state for /api/health and check_llm diagnostics
+        self._provider_states: dict[str, dict[str, Any]] = {
+            "gemini": {
+                "configured": False,
+                "reachable": False,
+                "last_call_ok": False,
+                "last_error": None,
+                "last_latency_ms": 0.0,
+                "model": "gemini-2.5-flash",
+                "masked_key": None,
+            },
+            "gemini_1": {
+                "configured": False,
+                "reachable": False,
+                "last_call_ok": False,
+                "last_error": None,
+                "last_latency_ms": 0.0,
+                "model": "gemini-2.5-flash",
+                "masked_key": None,
+            },
+            "gemini_2": {
+                "configured": False,
+                "reachable": False,
+                "last_call_ok": False,
+                "last_error": None,
+                "last_latency_ms": 0.0,
+                "model": "gemini-2.5-flash",
+                "masked_key": None,
+            },
+            "groq": {
+                "configured": False,
+                "reachable": False,
+                "last_call_ok": False,
+                "last_error": None,
+                "last_latency_ms": 0.0,
+                "model": "llama-3.3-70b-versatile",
+                "masked_key": None,
+            },
+        }
+
     def get_provider_configs(self) -> dict[str, ProviderConfig]:
-        """Load provider configurations from environment variables."""
-        return {
+        """Load provider configurations from environment variables, supporting flexible aliases."""
+        gemini_model_1 = (
+            os.environ.get("GEMINI_MODEL")
+            or os.environ.get("GEMINI_MODEL_1")
+            or os.environ.get("GEMINI_MODEL_NAME")
+            or "gemini-2.5-flash"
+        ).strip()
+        gemini_model_2 = (
+            os.environ.get("GEMINI_MODEL_2")
+            or gemini_model_1
+        ).strip()
+        
+        # Groq model: default to active production model openai/gpt-oss-20b
+        raw_groq_model = (
+            os.environ.get("GROQ_MODEL")
+            or os.environ.get("GROQ_MODEL_NAME")
+            or "openai/gpt-oss-20b"
+        ).strip()
+        # Fall back from decommissioned or unavailable Groq models
+        if raw_groq_model in (
+            "llama-3.3-70b-versatile",
+            "llama-3.1-70b-versatile",
+            "llama-3.1-8b-instant",
+            "llama3-70b-8192",
+            "llama3-8b-8192",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it",
+        ):
+            groq_model = "openai/gpt-oss-20b"
+        else:
+            groq_model = raw_groq_model
+
+        gemini_base_1 = os.environ.get(
+            "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
+        ).rstrip("/")
+        gemini_base_2 = os.environ.get("GEMINI_BASE_URL_2", gemini_base_1).rstrip("/")
+        groq_base = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+
+        # Flexible key aliases
+        gemini_key_1 = (
+            os.environ.get("GEMINI_API_KEY")
+            or os.environ.get("GOOGLE_API_KEY")
+            or os.environ.get("GEMINI_KEY")
+            or os.environ.get("GEMINI_API_KEY_1")
+            or ""
+        ).strip()
+
+        gemini_key_2 = (
+            os.environ.get("GEMINI_API_KEY_2")
+            or os.environ.get("GOOGLE_API_KEY_2")
+            or os.environ.get("GEMINI_KEY_2")
+            or ""
+        ).strip()
+
+        groq_key = (
+            os.environ.get("GROQ_API_KEY")
+            or os.environ.get("GROQ_KEY")
+            or ""
+        ).strip()
+
+        configs = {
             "gemini": ProviderConfig(
                 name="gemini",
-                base_url=os.environ.get(
-                    "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
-                ).rstrip("/"),
-                api_key=os.environ.get("GEMINI_API_KEY", "").strip(),
-                model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+                display_name="Gemini (Key 1)",
+                base_url=gemini_base_1,
+                api_key=gemini_key_1,
+                model=gemini_model_1,
+            ),
+            "gemini_2": ProviderConfig(
+                name="gemini_2",
+                display_name="Gemini (Key 2)",
+                base_url=gemini_base_2,
+                api_key=gemini_key_2,
+                model=gemini_model_2,
             ),
             "groq": ProviderConfig(
                 name="groq",
-                base_url=os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/"),
-                api_key=os.environ.get("GROQ_API_KEY", "").strip(),
-                model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+                display_name="Groq",
+                base_url=groq_base,
+                api_key=groq_key,
+                model=groq_model,
             ),
             "mistral": ProviderConfig(
                 name="mistral",
+                display_name="Mistral",
                 base_url=os.environ.get("MISTRAL_BASE_URL", "https://api.mistral.ai/v1").rstrip("/"),
                 api_key=os.environ.get("MISTRAL_API_KEY", "").strip(),
                 model=os.environ.get("MISTRAL_MODEL", "mistral-small-latest"),
             ),
             "openrouter": ProviderConfig(
                 name="openrouter",
+                display_name="OpenRouter",
                 base_url=os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").rstrip("/"),
                 api_key=os.environ.get("OPENROUTER_API_KEY", "").strip(),
                 model=os.environ.get("OPENROUTER_MODEL", "google/gemini-2.0-flash-001"),
             ),
             "ollama": ProviderConfig(
                 name="ollama",
+                display_name="Ollama (Disabled)",
                 base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1").rstrip("/"),
                 api_key=os.environ.get("OLLAMA_API_KEY", "").strip(),
                 model=os.environ.get("OLLAMA_MODEL", "llama3"),
             ),
         }
+        # Backward compatibility alias
+        configs["gemini_1"] = configs["gemini"]
+        return configs
+
+    def resolve_provider_order(self, order_str: Optional[str] = None) -> list[str]:
+        """Resolve ordered list of provider identifiers respecting priority."""
+        if order_str is None:
+            order_str = os.environ.get("LLM_PROVIDER_ORDER", self.default_order)
+        raw_tokens = [t.strip().lower() for t in order_str.split(",") if t.strip()]
+        resolved = []
+        for token in raw_tokens:
+            if token == "gemini":
+                resolved.append("gemini")
+                if os.environ.get("GEMINI_API_KEY_2", "").strip():
+                    resolved.append("gemini_2")
+            elif token in ("gemini_1", "gemini1", "gemini-1"):
+                resolved.append("gemini")
+            elif token in ("gemini_2", "gemini2", "gemini-2"):
+                resolved.append("gemini_2")
+            elif token == "groq":
+                resolved.append("groq")
+            elif token == "ollama":
+                if os.environ.get("ENABLE_OLLAMA") == "1":
+                    resolved.append("ollama")
+            elif token in ("mistral", "openrouter"):
+                resolved.append(token)
+            else:
+                resolved.append(token)
+
+        # Deduplicate while preserving order
+        seen = set()
+        final_order = []
+        for p in resolved:
+            if p not in seen:
+                seen.add(p)
+                final_order.append(p)
+        return final_order
 
     def get_configured_providers(self) -> list[str]:
-        """Get list of providers in order that have valid credentials or are local."""
+        """Get list of providers in order that have valid credentials and are not session-invalid."""
         configs = self.get_provider_configs()
-        order_raw = os.environ.get("LLM_PROVIDER_ORDER", self.default_order)
-        order = [p.strip().lower() for p in order_raw.split(",") if p.strip()]
-
+        order = self.resolve_provider_order()
         available = []
         for p in order:
             cfg = configs.get(p)
             if not cfg:
                 continue
+            if p in self._session_invalid_providers:
+                continue
             if p == "ollama":
-                if os.environ.get("OLLAMA_BASE_URL") or os.environ.get("ENABLE_OLLAMA") == "1" or cfg.api_key:
+                if os.environ.get("ENABLE_OLLAMA") == "1" and (os.environ.get("OLLAMA_BASE_URL") or cfg.api_key):
                     available.append(p)
             elif cfg.api_key:
                 available.append(p)
         return available
+
+    def get_provider_states(self) -> dict[str, dict[str, Any]]:
+        """Return snapshot of per-provider status for /api/health and diagnostics."""
+        configs = self.get_provider_configs()
+        now = time.time()
+        result = {}
+        for p in ("gemini_1", "gemini_2", "groq"):
+            cfg = configs.get(p)
+            base_state = dict(self._provider_states.get(p, {}))
+            if cfg:
+                canonical = "gemini" if p == "gemini_1" else p
+                base_state["configured"] = bool(cfg.api_key) and (canonical not in self._session_invalid_providers)
+                base_state["model"] = cfg.model
+                base_state["masked_key"] = mask_key(cfg.api_key) if cfg.api_key else None
+                cooldown_until = self._provider_cooldown_until.get(canonical, 0.0)
+                if cooldown_until > now:
+                    base_state["cooldown_seconds_remaining"] = round(cooldown_until - now, 1)
+                else:
+                    base_state["cooldown_seconds_remaining"] = 0.0
+                if canonical in self._session_invalid_providers:
+                    base_state["session_invalid"] = True
+            result[p] = base_state
+        return result
+
+    def _mark_session_invalid(self, provider: str) -> None:
+        """Mark provider key invalid for the current session."""
+        canonical = "gemini" if provider == "gemini_1" else provider
+        self._session_invalid_providers.add(canonical)
+        if canonical == "gemini":
+            self._session_invalid_providers.add("gemini_1")
+
+    def update_provider_state(
+        self,
+        provider: str,
+        *,
+        reachable: bool,
+        last_call_ok: bool,
+        last_error: Optional[str] = None,
+        last_latency_ms: float = 0.0,
+    ) -> None:
+        """Update runtime state for a provider."""
+        configs = self.get_provider_configs()
+        canonical = "gemini" if provider == "gemini_1" else provider
+        cfg = configs.get(canonical)
+
+        target_names = [canonical]
+        if canonical == "gemini":
+            target_names.append("gemini_1")
+
+        for t in target_names:
+            state = self._provider_states.setdefault(t, {})
+            state["configured"] = bool(cfg and cfg.api_key) and (canonical not in self._session_invalid_providers)
+            state["reachable"] = reachable
+            state["last_call_ok"] = last_call_ok
+            state["last_error"] = self.sanitize_secrets(last_error) if last_error else None
+            state["last_latency_ms"] = last_latency_ms
+            if cfg:
+                state["model"] = cfg.model
+                state["masked_key"] = mask_key(cfg.api_key) if cfg.api_key else None
+
+    def sanitize_secrets(self, text: Optional[str]) -> str:
+        """Sanitize all credentials from text or error strings (§Secrets)."""
+        if not text:
+            return ""
+        sanitized = str(text)
+        configs = self.get_provider_configs()
+        for cfg in configs.values():
+            if cfg.api_key and len(cfg.api_key) > 4:
+                sanitized = sanitized.replace(cfg.api_key, mask_key(cfg.api_key))
+        ant_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+        if ant_key and len(ant_key) > 4:
+            sanitized = sanitized.replace(ant_key, mask_key(ant_key))
+        return sanitized
+
+    def reset_session_state(self) -> None:
+        """Reset session-invalid keys, cooldowns, and status (for test isolation)."""
+        self._session_invalid_providers.clear()
+        self._provider_cooldown_until.clear()
+        self.last_status = "fallback:rules_only"
+        self.last_provider = None
+        self.last_error = None
+        with _CACHE_LOCK:
+            _JUDGE_CACHE.clear()
+        with _RATE_LIMIT_LOCK:
+            _PROVIDER_TIMESTAMPS.clear()
+        for p in self._provider_states:
+            self._provider_states[p]["last_call_ok"] = False
+            self._provider_states[p]["last_error"] = None
+            self._provider_states[p]["last_latency_ms"] = 0.0
 
     @property
     def is_available(self) -> bool:
@@ -168,7 +463,6 @@ class ProviderAgnosticJudge:
         now = time.time()
         with _RATE_LIMIT_LOCK:
             timestamps = _PROVIDER_TIMESTAMPS[provider]
-            # Prune older than 60s
             _PROVIDER_TIMESTAMPS[provider] = [t for t in timestamps if now - t < 60.0]
             if len(_PROVIDER_TIMESTAMPS[provider]) >= max_rpm:
                 return False
@@ -193,11 +487,53 @@ class ProviderAgnosticJudge:
         with _CACHE_LOCK:
             _JUDGE_CACHE[text_hash] = (now, scores, provider)
 
+    def _parse_cooldown_seconds(self, headers: Optional[Any]) -> float:
+        """Parse Retry-After or Groq rate limit headers to determine cooldown."""
+        if not headers:
+            return 60.0
+
+        # 1. Standard Retry-After
+        retry_after = headers.get("Retry-After") or headers.get("retry-after")
+        if retry_after:
+            try:
+                val = float(retry_after)
+                return max(5.0, min(300.0, val))
+            except ValueError:
+                pass
+
+        # 2. Groq specific rate limit reset headers
+        reset_req = headers.get("x-ratelimit-reset-requests") or headers.get("X-RateLimit-Reset-Requests")
+        if reset_req:
+            dur = parse_groq_reset_duration(reset_req)
+            if dur > 0.0:
+                return max(5.0, min(300.0, dur))
+
+        reset_tok = headers.get("x-ratelimit-reset-tokens") or headers.get("X-RateLimit-Reset-Tokens")
+        if reset_tok:
+            dur = parse_groq_reset_duration(reset_tok)
+            if dur > 0.0:
+                return max(5.0, min(300.0, dur))
+
+        return 60.0
+
+    def _inspect_rate_limit_headers(self, provider: str, headers: Optional[Any]) -> None:
+        """Inspect headers on successful responses to catch imminent Groq rate limits."""
+        if not headers:
+            return
+        rem_req = headers.get("x-ratelimit-remaining-requests") or headers.get("X-RateLimit-Remaining-Requests")
+        rem_tok = headers.get("x-ratelimit-remaining-tokens") or headers.get("X-RateLimit-Remaining-Tokens")
+        if rem_req == "0" or rem_tok == "0":
+            cooldown = self._parse_cooldown_seconds(headers)
+            self._provider_cooldown_until[provider] = time.time() + cooldown
+            logger.info("Provider '%s' reported 0 remaining quota; cooling down for %.1fs.", provider, cooldown)
+
     def _call_provider_endpoint(
         self,
         config: ProviderConfig,
         user_prompt: str,
         timeout: float = 10.0,
+        use_json_mode: bool = True,
+        is_retry: bool = False,
     ) -> dict[str, Any]:
         """Execute HTTP POST to an OpenAI-compatible /chat/completions endpoint."""
         endpoint = f"{config.base_url}/chat/completions"
@@ -215,15 +551,103 @@ class ProviderAgnosticJudge:
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0.0,
-            "response_format": {"type": "json_object"},
         }
+        if use_json_mode:
+            payload["response_format"] = {"type": "json_object"}
 
         data_bytes = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(endpoint, data=data_bytes, headers=headers, method="POST")
 
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            resp_body = resp.read().decode("utf-8")
-            return json.loads(resp_body)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                resp_body = resp.read().decode("utf-8")
+                self._inspect_rate_limit_headers(config.name, resp.headers)
+                return json.loads(resp_body)
+
+        except urllib.error.HTTPError as e:
+            status_code = e.code
+            body_str = e.read().decode("utf-8", errors="replace")
+            resp_headers = e.headers
+
+            # Check if model rejected response_format json_object (Groq or other models)
+            if use_json_mode and status_code == 400:
+                low_body = body_str.lower()
+                if any(k in low_body for k in ("response_format", "json_object", "unsupported", "not supported", "schema")):
+                    logger.info(
+                        "Provider '%s' (%s) rejected response_format json_object; retrying with strict JSON prompt.",
+                        config.name,
+                        config.model,
+                    )
+                    return self._call_provider_endpoint(
+                        config,
+                        user_prompt,
+                        timeout=timeout,
+                        use_json_mode=False,
+                        is_retry=is_retry,
+                    )
+
+            # 404: Model not found / outdated / decommissioned -> fallback if Groq
+            if status_code == 404 and config.name == "groq" and config.model != "openai/gpt-oss-120b":
+                logger.warning(
+                    "Groq model '%s' returned HTTP 404. Falling back to active production model 'openai/gpt-oss-120b'.",
+                    config.model,
+                )
+                config.model = "openai/gpt-oss-120b"
+                return self._call_provider_endpoint(
+                    config,
+                    user_prompt,
+                    timeout=timeout,
+                    use_json_mode=use_json_mode,
+                    is_retry=is_retry,
+                )
+
+            # 400, 401, 403: Mark key invalid for the session
+            if status_code in (400, 401, 403):
+                self._mark_session_invalid(config.name)
+                logger.warning(
+                    "Provider '%s' returned HTTP %d. Key marked invalid for session.",
+                    config.name,
+                    status_code,
+                )
+                raise ProviderHTTPError(status_code, body_str, resp_headers)
+
+            # 429: Rate limit / Quota exceeded -> apply cooldown
+            if status_code == 429:
+                cooldown = self._parse_cooldown_seconds(resp_headers)
+                self._provider_cooldown_until[config.name] = time.time() + cooldown
+                logger.warning(
+                    "Provider '%s' returned HTTP 429. Cooldown set for %.1f seconds.",
+                    config.name,
+                    cooldown,
+                )
+                raise ProviderHTTPError(429, f"Rate limited. Cooldown {int(cooldown)}s", resp_headers)
+
+            # 5xx: Server error -> retry once
+            if status_code in (500, 502, 503, 504) and not is_retry:
+                logger.info("Provider '%s' returned HTTP %d. Retrying once...", config.name, status_code)
+                time.sleep(0.5)
+                return self._call_provider_endpoint(
+                    config,
+                    user_prompt,
+                    timeout=timeout,
+                    use_json_mode=use_json_mode,
+                    is_retry=True,
+                )
+
+            raise ProviderHTTPError(status_code, body_str, resp_headers)
+
+        except (urllib.error.URLError, TimeoutError, socket.timeout) as e:
+            if not is_retry:
+                logger.info("Provider '%s' connection/timeout (%s). Retrying once...", config.name, e)
+                time.sleep(0.5)
+                return self._call_provider_endpoint(
+                    config,
+                    user_prompt,
+                    timeout=timeout,
+                    use_json_mode=use_json_mode,
+                    is_retry=True,
+                )
+            raise
 
     def parse_and_validate_json(self, raw_content: str) -> JudgeScores:
         """Parse, validate, and clamp LLM output to JudgeScores schema."""
@@ -257,81 +681,221 @@ class ProviderAgnosticJudge:
 
         return JudgeScores.model_validate(clamped_fields)
 
+    def test_provider(self, name: str, timeout: float = 10.0) -> dict[str, Any]:
+        """Test a single provider independently and report diagnostics for check_llm.py."""
+        configs = self.get_provider_configs()
+        cfg = configs.get(name)
+        if not cfg:
+            return {
+                "provider": name,
+                "display_name": name,
+                "configured": False,
+                "masked_key": "[none]",
+                "auth": "SKIPPED",
+                "status_code": "-",
+                "model": "-",
+                "latency_ms": 0.0,
+                "json_valid": "-",
+                "details": "Unknown provider",
+                "error": "Unknown provider",
+            }
+
+        masked = mask_key(cfg.api_key) if cfg.api_key else "[none]"
+        if not cfg.api_key:
+            return {
+                "provider": name,
+                "display_name": cfg.display_name,
+                "configured": False,
+                "masked_key": "[none]",
+                "auth": "SKIPPED (no key)",
+                "status_code": "-",
+                "model": cfg.model,
+                "latency_ms": 0.0,
+                "json_valid": "-",
+                "details": "Key not configured in .env",
+                "error": None,
+            }
+
+        test_input = "<untrusted>\nHello, confirm security status.\n</untrusted>"
+        t_start = time.perf_counter()
+
+        try:
+            raw_resp = self._call_provider_endpoint(cfg, test_input, timeout=timeout)
+            dur = round((time.perf_counter() - t_start) * 1000, 2)
+            choices = raw_resp.get("choices", [])
+            if not choices:
+                self.update_provider_state(name, reachable=True, last_call_ok=False, last_error="No choices returned", last_latency_ms=dur)
+                return {
+                    "provider": name,
+                    "display_name": cfg.display_name,
+                    "configured": True,
+                    "masked_key": masked,
+                    "auth": "FAILED (empty choices)",
+                    "status_code": 200,
+                    "model": cfg.model,
+                    "latency_ms": dur,
+                    "json_valid": "INVALID",
+                    "details": "Endpoint returned 200 but choices array was empty",
+                    "error": "No choices returned",
+                }
+
+            content = choices[0].get("message", {}).get("content", "")
+            try:
+                scores = self.parse_and_validate_json(content)
+                self.update_provider_state(name, reachable=True, last_call_ok=True, last_error=None, last_latency_ms=dur)
+                return {
+                    "provider": name,
+                    "display_name": cfg.display_name,
+                    "configured": True,
+                    "masked_key": masked,
+                    "auth": "OK",
+                    "status_code": 200,
+                    "model": cfg.model,
+                    "latency_ms": dur,
+                    "json_valid": "VALID",
+                    "details": scores.rationale or "JSON validated successfully",
+                    "error": None,
+                }
+            except Exception as val_err:
+                self.update_provider_state(name, reachable=True, last_call_ok=False, last_error=str(val_err), last_latency_ms=dur)
+                return {
+                    "provider": name,
+                    "display_name": cfg.display_name,
+                    "configured": True,
+                    "masked_key": masked,
+                    "auth": "OK",
+                    "status_code": 200,
+                    "model": cfg.model,
+                    "latency_ms": dur,
+                    "json_valid": "INVALID",
+                    "details": f"Validation failed: {val_err}",
+                    "error": str(val_err),
+                }
+
+        except ProviderHTTPError as e:
+            dur = round((time.perf_counter() - t_start) * 1000, 2)
+            clean_err = self.sanitize_secrets(e.body)
+            is_auth_failure = e.status_code in (400, 401, 403)
+            auth_status = "FAILED" if is_auth_failure else "OK"
+            self.update_provider_state(name, reachable=True, last_call_ok=False, last_error=clean_err[:120], last_latency_ms=dur)
+            return {
+                "provider": name,
+                "display_name": cfg.display_name,
+                "configured": True,
+                "masked_key": masked,
+                "auth": auth_status,
+                "status_code": e.status_code,
+                "model": cfg.model,
+                "latency_ms": dur,
+                "json_valid": "-",
+                "details": clean_err[:80],
+                "error": clean_err,
+            }
+        except Exception as e:
+            dur = round((time.perf_counter() - t_start) * 1000, 2)
+            clean_err = self.sanitize_secrets(str(e))
+            self.update_provider_state(name, reachable=False, last_call_ok=False, last_error=clean_err[:120], last_latency_ms=dur)
+            return {
+                "provider": name,
+                "display_name": cfg.display_name,
+                "configured": True,
+                "masked_key": masked,
+                "auth": "FAILED",
+                "status_code": "ERR",
+                "model": cfg.model,
+                "latency_ms": dur,
+                "json_valid": "-",
+                "details": clean_err[:80],
+                "error": clean_err,
+            }
+
     def evaluate_text(
         self,
         text: str,
         timeout_per_provider: float = 10.0,
+        bypass_cache: bool = False,
     ) -> tuple[JudgeScores, str, str]:
         """Evaluate text across configured providers with caching, rate limiting, and failover.
 
         Returns: (JudgeScores, provider_used_or_empty, status_string).
         """
+        if os.environ.get("SIMULATE_LLM_FAILURE", "0").strip() == "1":
+            fallback_status = "fallback:rules_only"
+            self.last_status = fallback_status
+            self.last_provider = None
+            self.last_error = "all providers failed (simulated failure)"
+            return JudgeScores(rationale="LLM judge offline: all providers failed"), "", fallback_status
+
         if not text or not text.strip():
             empty_scores = JudgeScores(rationale="Empty input text")
             return empty_scores, "", "ok (empty text)"
 
         # 1. Truncate input to ~6000 characters to protect token boundaries
         truncated_text = text[:6000]
-
-        # 2. Check hash-based cache (TTL 10 min)
         text_hash = hashlib.sha256(truncated_text.encode("utf-8")).hexdigest()
-        cached = self._get_from_cache(text_hash)
-        if cached is not None:
-            cached_scores, cached_provider = cached
-            self.last_status = f"cached ({cached_provider})"
-            self.last_provider = cached_provider
-            return cached_scores, cached_provider, f"cached ({cached_provider})"
+
+        # 2. Check hash-based cache (TTL 10 min) unless bypass_cache is requested
+        if not bypass_cache:
+            cached = self._get_from_cache(text_hash)
+            if cached is not None:
+                cached_scores, cached_provider = cached
+                self.last_status = f"cached ({cached_provider})"
+                self.last_provider = cached_provider
+                return cached_scores, cached_provider, f"cached ({cached_provider})"
 
         # Wrap in untrusted tags
         user_prompt = f"<untrusted>\n{truncated_text}\n</untrusted>"
 
         # 3. Determine provider order and iterate
         configs = self.get_provider_configs()
-        order_raw = os.environ.get("LLM_PROVIDER_ORDER", self.default_order)
-        provider_order = [p.strip().lower() for p in order_raw.split(",") if p.strip()]
-
+        provider_order = self.resolve_provider_order()
         last_err_msg = "no providers configured"
 
         for provider in provider_order:
             cfg = configs.get(provider)
-            if not cfg:
+            if not cfg or not cfg.api_key:
                 continue
 
-            # Skip providers without key (for ollama: requires base_url, key, or ENABLE_OLLAMA=1)
-            if provider == "ollama":
-                if not (os.environ.get("OLLAMA_BASE_URL") or os.environ.get("ENABLE_OLLAMA") == "1" or cfg.api_key):
-                    continue
-            elif not cfg.api_key:
+            # Skip if marked invalid for this session (400/401/403)
+            if provider in self._session_invalid_providers:
+                logger.debug("Skipping provider '%s': key marked invalid for session.", provider)
                 continue
 
-            # Check rate limiter
+            # Skip if in cooldown (429 or rate limits)
+            cooldown_until = self._provider_cooldown_until.get(provider, 0.0)
+            if time.time() < cooldown_until:
+                logger.debug("Skipping provider '%s': in cooldown for %.1fs.", provider, cooldown_until - time.time())
+                continue
+
+            # Sliding-window per-minute rate limiter
             if not self._check_rate_limit(provider):
                 logger.warning(
-                    "LLM Judge provider '%s' rate limit reached (%d req/min), skipping to next.",
+                    "LLM Judge provider '%s' sliding window limit reached (%d req/min).",
                     provider,
                     DEFAULT_MAX_RPM,
                 )
                 last_err_msg = f"{provider} rate limit exceeded"
                 continue
 
+            # Check and record demo quota
             try:
-                # Decrement Daily LLM Quota counter on real invocation
-                try:
-                    from server.demo_mode import get_demo_manager
-                    demo_mgr = get_demo_manager()
-                    if not demo_mgr.can_call_llm():
-                        logger.warning("Daily LLM call quota reached in demo mode. Falling back.")
-                        last_err_msg = "daily quota exhausted"
-                        continue
-                    demo_mgr.record_llm_call()
-                except Exception:
-                    pass
+                from server.demo_mode import get_demo_manager
+                demo_mgr = get_demo_manager()
+                if not demo_mgr.can_call_llm():
+                    logger.warning("Daily LLM call quota reached. Falling back.")
+                    last_err_msg = "daily quota exhausted"
+                    continue
+                # Decrement Daily LLM Quota counter on real outbound call
+                demo_mgr.record_llm_call()
+            except Exception:
+                pass
 
+            t_start = time.perf_counter()
+            try:
                 response_data = self._call_provider_endpoint(
                     cfg, user_prompt, timeout=timeout_per_provider
                 )
-
-                # Extract choices[0].message.content
+                dur = round((time.perf_counter() - t_start) * 1000, 2)
                 choices = response_data.get("choices", [])
                 if not choices:
                     raise ValueError("No choices returned in /chat/completions response")
@@ -339,7 +903,8 @@ class ProviderAgnosticJudge:
                 message_content = choices[0].get("message", {}).get("content", "")
                 scores = self.parse_and_validate_json(message_content)
 
-                # Successful call: cache result and return
+                # Update state: real call succeeded!
+                self.update_provider_state(provider, reachable=True, last_call_ok=True, last_error=None, last_latency_ms=dur)
                 self._put_in_cache(text_hash, scores, provider)
                 self.last_status = f"ok ({provider})"
                 self.last_provider = provider
@@ -347,17 +912,17 @@ class ProviderAgnosticJudge:
                 return scores, provider, f"ok ({provider})"
 
             except Exception as e:
-                # Sanitize error message to ensure no API key is ever logged
-                err_str = str(e)
-                if cfg.api_key:
-                    err_str = err_str.replace(cfg.api_key, "[REDACTED_API_KEY]")
-                logger.warning(
-                    "LLM Judge provider '%s' failed (model=%s): %s",
-                    provider,
-                    cfg.model,
-                    err_str,
-                )
-                last_err_msg = f"{provider}: {err_str}"
+                dur = round((time.perf_counter() - t_start) * 1000, 2)
+                err_clean = self.sanitize_secrets(str(e))
+                # Check for auth failure / session invalidation
+                if isinstance(e, ProviderHTTPError) and e.status_code in (400, 401, 403):
+                    self._mark_session_invalid(provider)
+                elif isinstance(e, urllib.error.HTTPError) and e.code in (400, 401, 403):
+                    self._mark_session_invalid(provider)
+
+                self.update_provider_state(provider, reachable=True, last_call_ok=False, last_error=err_clean[:120], last_latency_ms=dur)
+                logger.warning("LLM Judge provider '%s' failed (model=%s): %s", provider, cfg.model, err_clean)
+                last_err_msg = f"{provider}: {err_clean}"
                 continue
 
         # All providers failed or none configured -> fallback to rules only
@@ -376,7 +941,10 @@ class ProviderAgnosticJudge:
         prior_score: float = 0.0,
     ) -> list[Finding]:
         """Detect prompt injection and generate structured Finding objects."""
-        scores, provider, status = self.evaluate_text(segment.text)
+        bypass_cache = False
+        if ctx is not None:
+            bypass_cache = bool(getattr(ctx, "metadata", {}).get("bypass_cache", False))
+        scores, provider, status = self.evaluate_text(segment.text, bypass_cache=bypass_cache)
         if status.startswith("fallback"):
             return []
 

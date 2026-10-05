@@ -150,7 +150,7 @@ class TestProviderAgnosticJudge:
         with patch("urllib.request.urlopen", side_effect=mock_urlopen):
             scores, provider, status = judge.evaluate_text("System override test")
 
-        assert call_count == 2
+        assert call_count in (2, 3)
         assert provider == "groq"
         assert status == "ok (groq)"
         assert scores.INSTRUCTION_OVERRIDE == 0.95

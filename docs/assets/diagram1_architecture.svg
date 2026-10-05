@@ -1,0 +1,195 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 680" width="100%" height="100%" style="background:#FFFFFF; font-family:'Inter', sans-serif;">
+  <defs>
+    <filter id="shadow1" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.06"/>
+    </filter>
+    <linearGradient id="gradPurple1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A100FF"/>
+      <stop offset="100%" stop-color="#7000B8"/>
+    </linearGradient>
+    <marker id="arrow1" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#A100FF"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="500" y="38" text-anchor="middle" font-size="20" font-weight="800" fill="#171322">AgenticGuard: Multi-Layer Defense-in-Depth Architecture</text>
+  <text x="500" y="58" text-anchor="middle" font-size="12" font-weight="500" fill="#7A7585">End-to-End Pipeline from Inbound Untrusted Carriers (L1) to Runtime Blast Radius Guards (G1–G3)</text>
+
+  <!-- Left: Inbound Sources -->
+  <g transform="translate(40, 90)">
+    <rect width="170" height="550" rx="10" fill="#F9F8FA" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow1)"/>
+    <rect width="170" height="36" rx="10" fill="#EDE8F5"/>
+    <rect y="26" width="170" height="10" fill="#EDE8F5"/>
+    <text x="85" y="23" text-anchor="middle" font-size="13" font-weight="700" fill="#5A189A">11 Inbound Carriers (L1)</text>
+
+    <!-- Source Pills -->
+    <g transform="translate(15, 50)" font-size="11" font-weight="500" fill="#2D283E">
+      <rect y="0" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="17">1. User Message (Chat)</text>
+      <rect y="32" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="49">2. Web Page (HTML/JS)</text>
+      <rect y="64" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="81">3. PDF Documents</text>
+      <rect y="96" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="113">4. Word (.docx)</text>
+      <rect y="128" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="145">5. Email (.eml / MIME)</text>
+      <rect y="160" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="177">6. Markdown (.md)</text>
+      <rect y="192" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="209">7. Raw HTML Files</text>
+      <rect y="224" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="241">8. API JSON Payload</text>
+      <rect y="256" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="273">9. Source Code</text>
+      <rect y="288" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="305">10. OCR Extracted Text</text>
+      <rect y="320" width="140" height="26" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="337">11. Images (OCR scan)</text>
+      
+      <rect y="360" width="140" height="120" rx="6" fill="#FFF7ED" stroke="#FDBA74"/>
+      <text x="10" y="378" font-weight="700" font-size="10.5" fill="#C2410C">Hidden Text Extraction:</text>
+      <text x="10" y="394" font-size="9" fill="#7C2D12">• White-on-white text</text>
+      <text x="10" y="408" font-size="9" fill="#7C2D12">• &lt;w:vanish/&gt;, Comments</text>
+      <text x="10" y="422" font-size="9" fill="#7C2D12">• display:none, opacity:0</text>
+      <text x="10" y="436" font-size="9" fill="#7C2D12">• Tiny fonts (≤ 2pt)</text>
+      <text x="10" y="450" font-size="9" fill="#7C2D12">• Offscreen coordinates</text>
+      <text x="10" y="464" font-size="9" fill="#7C2D12">• Document metadata</text>
+    </g>
+  </g>
+
+  <!-- Connect L1 to Pipeline -->
+  <path d="M 210 365 L 260 365" stroke="#A100FF" stroke-width="2.5" marker-end="url(#arrow1)"/>
+
+  <!-- Center: Cascade Pipeline L2 -> L5 -->
+  <g transform="translate(265, 90)">
+    <rect width="420" height="550" rx="10" fill="#FFFFFF" stroke="#A100FF" stroke-width="2" filter="url(#shadow1)"/>
+    <rect width="420" height="36" rx="10" fill="url(#gradPurple1)"/>
+    <rect y="26" width="420" height="10" fill="url(#gradPurple1)"/>
+    <text x="210" y="23" text-anchor="middle" font-size="13" font-weight="700" fill="#FFFFFF">AgenticGuard Inspection Pipeline (L2 – L5)</text>
+
+    <!-- L2 Box -->
+    <g transform="translate(20, 50)">
+      <rect width="380" height="66" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5"/>
+      <text x="15" y="20" font-size="11.5" font-weight="700" fill="#A100FF">L2 Normalization &amp; Deobfuscation (MappedText)</text>
+      <text x="15" y="37" font-size="10" fill="#554F62">Decoders: Base64, Hex, ROT13, Leet, Despace, Unicode Tags (U+E0000), Homoglyphs</text>
+      <text x="15" y="53" font-size="9.5" font-weight="600" fill="#2563EB">Tracks decoded character coordinates back to exact raw source offsets</text>
+    </g>
+
+    <path d="M 210 116 L 210 131" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow1)"/>
+
+    <!-- L3 Detection Cascade Box -->
+    <g transform="translate(20, 133)">
+      <rect width="380" height="195" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5"/>
+      <text x="15" y="20" font-size="11.5" font-weight="700" fill="#A100FF">L3 Detection Cascade (Multi-Layer Arbitration)</text>
+      
+      <!-- L3a -->
+      <rect x="15" y="28" width="350" height="32" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="25" y="43" font-size="10.5" font-weight="600" fill="#171322">L3a ReDoS-Safe Rules + Instruction-in-Data</text>
+      <text x="25" y="54" font-size="9" fill="#7A7585">9 Attack vectors; checks imperative verbs + AI cues; benign business whitelist</text>
+
+      <!-- L3b -->
+      <rect x="15" y="65" width="350" height="32" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="25" y="80" font-size="10.5" font-weight="600" fill="#171322">L3b ML Classifier (Sliding Window Scanner)</text>
+      <text x="25" y="91" font-size="9" fill="#7A7585">TF-IDF char n-grams + Logistic Regression providing measured recall lift</text>
+
+      <!-- L3c -->
+      <rect x="15" y="102" width="350" height="38" rx="5" fill="#F5EEFF" stroke="#A100FF"/>
+      <text x="25" y="117" font-size="10.5" font-weight="700" fill="#7000B8">L3c Hardened LLM Judge (Google Gemini / Multi-Provider)</text>
+      <text x="25" y="131" font-size="9" fill="#5A189A">Grey-zone [0.35, 0.75] arbitration, JSON schema, rate limiter &amp; offline fallback</text>
+
+      <!-- L3d -->
+      <rect x="15" y="145" width="350" height="32" rx="5" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="25" y="159" font-size="10.5" font-weight="600" fill="#171322">L3d Session Tracker</text>
+      <text x="25" y="170" font-size="9" fill="#7A7585">Multi-turn memory tracking rolling context window (t-3 ... t)</text>
+    </g>
+
+    <path d="M 210 328 L 210 343" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow1)"/>
+
+    <!-- L4 Fusion & Policy Box -->
+    <g transform="translate(20, 345)">
+      <rect width="380" height="80" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5"/>
+      <text x="15" y="20" font-size="11.5" font-weight="700" fill="#A100FF">L4 Multi-Layer Consensus Fusion &amp; Policy</text>
+      <text x="15" y="37" font-size="10" fill="#2D283E">Noisy-OR combined risk + 5% consensus boost if ≥ 2 layers detect threat</text>
+      <text x="15" y="52" font-size="10" fill="#2D283E">Applies source risk multipliers (Email 1.2x, API 1.15x, Web 1.1x, User 1.0x)</text>
+      <text x="15" y="68" font-size="9.5" font-weight="700" fill="#DC2626">Verdict: ALLOW (&lt;0.25) | SANITIZE (0.25–0.85) | BLOCK (≥0.85) | ESCALATE</text>
+    </g>
+
+    <path d="M 210 425 L 210 440" stroke="#A100FF" stroke-width="2" marker-end="url(#arrow1)"/>
+
+    <!-- L5 Neutralizer Box -->
+    <g transform="translate(20, 442)">
+      <rect width="380" height="90" rx="8" fill="#F5EEFF" stroke="#A100FF" stroke-width="1.5"/>
+      <text x="15" y="20" font-size="11.5" font-weight="700" fill="#7000B8">L5 Spotlighting Neutralizer &amp; Nonce Envelopes</text>
+      <text x="15" y="37" font-size="10" fill="#2D283E">1. Surgical span redaction directly on original text: [REDACTED:VECTOR]</text>
+      <text x="15" y="53" font-size="10" fill="#2D283E">2. Delimiter neutralizing: &lt;&lt;&lt; escaped to &amp;lt;&amp;lt;&amp;lt; preventing breakout</text>
+      <text x="15" y="70" font-size="9.5" font-weight="600" fill="#16A34A">&lt;&lt;&lt;UNTRUSTED_DATA id=token source=pdf&gt;&gt;&gt; Safe content envelope</text>
+    </g>
+  </g>
+
+  <!-- Connect Pipeline to Agent Runtime -->
+  <path d="M 685 510 L 735 510" stroke="#16A34A" stroke-width="2.5" marker-end="url(#arrow1)"/>
+  <text x="710" y="500" text-anchor="middle" font-size="9" font-weight="700" fill="#16A34A">Safe Content</text>
+
+  <!-- Right: Agent Runtime & Blast Radius Guards G1-G3 -->
+  <g transform="translate(740, 90)">
+    <rect width="220" height="550" rx="10" fill="#F9F8FA" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow1)"/>
+    <rect width="220" height="36" rx="10" fill="#E8E5F2"/>
+    <rect y="26" width="220" height="10" fill="#E8E5F2"/>
+    <text x="110" y="23" text-anchor="middle" font-size="13" font-weight="700" fill="#171322">Agent Runtime &amp; Guards</text>
+
+    <!-- Victim Agent -->
+    <g transform="translate(15, 50)">
+      <rect width="190" height="70" rx="6" fill="#FFFFFF" stroke="#16A34A" stroke-width="1.5"/>
+      <text x="12" y="20" font-size="11.5" font-weight="700" fill="#16A34A">Victim Agent (ReAct)</text>
+      <text x="12" y="36" font-size="9.5" fill="#554F62">Tools: read/write file, email, bash,</text>
+      <text x="12" y="49" font-size="9.5" fill="#554F62">fetch url, SQL, transfer funds</text>
+      <text x="12" y="62" font-size="9" font-weight="600" fill="#A100FF">Zero real side effects (mock SQLite)</text>
+    </g>
+
+    <!-- Guards Container -->
+    <text x="20" y="145" font-size="11" font-weight="700" fill="#A100FF">Runtime Blast Radius Guards:</text>
+
+    <!-- G1 -->
+    <g transform="translate(15, 155)">
+      <rect width="190" height="75" rx="6" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="18" font-size="10.5" font-weight="700" fill="#171322">G1 Tool Execution Guard</text>
+      <text x="12" y="33" font-size="9" fill="#554F62">• 5 Tiers: Public, Sensitive, Egress,</text>
+      <text x="12" y="46" font-size="9" fill="#554F62">  Local Write, Exec Destructive</text>
+      <text x="12" y="59" font-size="9" fill="#554F62">• Taint rules: tainted cannot exfil</text>
+      <text x="12" y="70" font-size="9" fill="#554F62">• Blocks DROP TABLE, shell rm -rf</text>
+    </g>
+
+    <!-- G2 -->
+    <g transform="translate(15, 240)">
+      <rect width="190" height="75" rx="6" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="18" font-size="10.5" font-weight="700" fill="#171322">G2 Egress Output Guard</text>
+      <text x="12" y="33" font-size="9" fill="#554F62">• Scans outbound agent responses</text>
+      <text x="12" y="46" font-size="9" fill="#554F62">• Canary token leakage block</text>
+      <text x="12" y="59" font-size="9" fill="#554F62">• Credential masking (AWS, JWT, sk-)</text>
+      <text x="12" y="70" font-size="9" fill="#554F62">• Markdown image exfil blocker</text>
+    </g>
+
+    <!-- G3 -->
+    <g transform="translate(15, 325)">
+      <rect width="190" height="65" rx="6" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="18" font-size="10.5" font-weight="700" fill="#171322">G3 Memory Guard</text>
+      <text x="12" y="33" font-size="9" fill="#554F62">• Checks persistent memory writes</text>
+      <text x="12" y="46" font-size="9" fill="#554F62">• Blocks context poisoning</text>
+      <text x="12" y="58" font-size="9" fill="#554F62">• Rejects fake admin authority</text>
+    </g>
+
+    <!-- Observability Box -->
+    <g transform="translate(15, 400)">
+      <rect width="190" height="130" rx="6" fill="#EDE8F5" stroke="#A100FF"/>
+      <text x="12" y="18" font-size="11" font-weight="700" fill="#7000B8">Audit &amp; Observability</text>
+      <text x="12" y="35" font-size="9.5" fill="#171322">• Structured JSON audit log</text>
+      <text x="12" y="50" font-size="9.5" fill="#171322">• Rolling latency percentiles</text>
+      <text x="12" y="65" font-size="9.5" fill="#171322">• Human review feedback queue</text>
+      <text x="12" y="80" font-size="9.5" fill="#171322">• Hot-reloaded policy (YAML)</text>
+      <text x="12" y="95" font-size="9.5" fill="#171322">• Public demo rate limiting</text>
+      <text x="12" y="115" font-size="9" font-weight="600" fill="#5A189A">GET /api/audit • GET /api/metrics</text>
+    </g>
+  </g>
+</svg>

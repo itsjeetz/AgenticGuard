@@ -73,15 +73,12 @@ class DemoQuotaManager:
 
     def record_llm_call(self) -> bool:
         """Record an LLM call against the daily quota. Returns True if recorded within limit."""
-        if not is_demo_mode():
-            return True
-
         with self._lock:
             self._check_and_reset_day()
             limit = self.get_max_daily_llm_calls()
             if self._daily_llm_calls < limit:
                 self._daily_llm_calls += 1
-                logger.info("Demo Mode: Recorded LLM call (%d / %d today)", self._daily_llm_calls, limit)
+                logger.info("Recorded LLM call (%d / %d today)", self._daily_llm_calls, limit)
                 return True
             return False
 

@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 560" width="100%" height="100%" style="background:#FFFFFF; font-family:'Inter', sans-serif;">
+  <defs>
+    <filter id="shadow3" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="4" stdDeviation="5" flood-color="#000000" flood-opacity="0.06"/>
+    </filter>
+    <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A100FF"/>
+      <stop offset="100%" stop-color="#7000B8"/>
+    </linearGradient>
+    <marker id="arrow3" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#A100FF"/>
+    </marker>
+  </defs>
+
+  <text x="475" y="35" text-anchor="middle" font-size="18" font-weight="800" fill="#171322">Scoring &amp; Multi-Layer Consensus Fusion (L4)</text>
+  <text x="475" y="55" text-anchor="middle" font-size="12" fill="#7A7585">Mathematical formulation for combining detector findings, consensus boosting, and source multipliers</text>
+
+  <!-- Left: Per-Category Formulation -->
+  <g transform="translate(40, 85)">
+    <rect width="410" height="430" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow3)"/>
+    <rect width="410" height="30" rx="8" fill="#EDE8F5"/>
+    <rect y="22" width="410" height="8" fill="#EDE8F5"/>
+    <text x="20" y="21" font-size="12" font-weight="700" fill="#5A189A">Step 1: Per-Category Score Calculation</text>
+
+    <g transform="translate(20, 45)" font-size="10.5" fill="#2D283E">
+      <text x="0" y="16" font-weight="700" fill="#171322">1. Base Category Confidence:</text>
+      <rect y="25" width="370" height="32" rx="4" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="46" font-family="monospace" font-size="11" fill="#7000B8">s_cat = max(r_score, j_score, c_score, other)</text>
+      <text x="0" y="76" font-size="10" fill="#554F62">Takes maximum score across rules, LLM judge, classifier for that vector.</text>
+
+      <text x="0" y="105" font-weight="700" fill="#171322">2. Multi-Layer Consensus Boost (+5%):</text>
+      <rect y="114" width="370" height="48" rx="4" fill="#F5EEFF" stroke="#A100FF"/>
+      <text x="12" y="132" font-family="monospace" font-size="10.5" fill="#7000B8">if count(layer_score ≥ 0.50) ≥ 2:</text>
+      <text x="24" y="148" font-family="monospace" font-size="10.5" fill="#7000B8">s_cat = min(1.0, s_cat * 1.05)</text>
+      <text x="0" y="180" font-size="10" fill="#554F62">Rewards mutual verification between rules and hardened LLM judge.</text>
+
+      <text x="0" y="210" font-weight="700" fill="#171322">3. Guaranteed 9-Vector Coverage:</text>
+      <text x="0" y="228" font-size="10" fill="#554F62">Every transaction produces scores for ALL 9 canonical keys:</text>
+      
+      <g transform="translate(0, 240)" font-size="8.5" fill="#171322">
+        <rect x="0" y="0" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="6" y="14">INSTRUCTION_OVERRIDE</text>
+        <rect x="125" y="0" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="131" y="14">ROLE_CHANGE</text>
+        <rect x="250" y="0" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="256" y="14">SECRET_EXTRACTION</text>
+
+        <rect x="0" y="26" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="6" y="40">TOOL_ABUSE</text>
+        <rect x="125" y="26" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="131" y="40">CREDENTIAL_THEFT</text>
+        <rect x="250" y="26" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="256" y="40">CONTEXT_POISONING</text>
+
+        <rect x="0" y="52" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="6" y="66">MULTI_STEP_JAILBREAK</text>
+        <rect x="125" y="52" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="131" y="66">ENCODED_INSTRUCT</text>
+        <rect x="250" y="52" width="115" height="20" rx="3" fill="#FFFFFF" stroke="#E2DEE9"/>
+        <text x="256" y="66">INDIRECT_INJECTION</text>
+      </g>
+
+      <text x="0" y="340" font-weight="700" fill="#171322">4. Detection Classification Threshold:</text>
+      <text x="0" y="358" font-size="10" fill="#554F62">Vector flagged as <tspan font-weight="700" fill="#A100FF">Detected</tspan> if <tspan font-family="monospace">score ≥ 0.50</tspan> (customizable).</text>
+    </g>
+  </g>
+
+  <!-- Right: Combined Risk Formulation -->
+  <g transform="translate(490, 85)">
+    <rect width="420" height="430" rx="8" fill="#FAF9FC" stroke="#E2DEE9" stroke-width="1.5" filter="url(#shadow3)"/>
+    <rect width="420" height="30" rx="8" fill="#EDE8F5"/>
+    <rect y="22" width="420" height="8" fill="#EDE8F5"/>
+    <text x="20" y="21" font-size="12" font-weight="700" fill="#5A189A">Step 2: Combined Overall Risk Formulation</text>
+
+    <g transform="translate(20, 45)" font-size="10.5" fill="#2D283E">
+      <text x="0" y="16" font-weight="700" fill="#171322">1. Noisy-OR Probability Aggregation:</text>
+      <rect y="25" width="380" height="32" rx="4" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="46" font-family="monospace" font-size="11" fill="#7000B8">P_noisy_or = 1.0 - ∏ (1.0 - s_cat)</text>
+      <text x="0" y="76" font-size="10" fill="#554F62">Probabilistic combination assuming independent malicious signals.</text>
+
+      <text x="0" y="105" font-weight="700" fill="#171322">2. Risk Dominance Safeguard:</text>
+      <rect y="114" width="380" height="32" rx="4" fill="#FFFFFF" stroke="#D4CFDE"/>
+      <text x="12" y="135" font-family="monospace" font-size="10.5" fill="#7000B8">risk = max(weighted_layers, max(s_cat), P_noisy_or)</text>
+      <text x="0" y="165" font-size="10" fill="#554F62">Guarantees overall risk is at least as high as highest detected vector.</text>
+
+      <text x="0" y="195" font-weight="700" fill="#171322">3. Deception &amp; Obfuscation Boosts:</text>
+      <text x="0" y="213" font-size="10" fill="#2D283E">• <tspan font-weight="600" fill="#EA580C">+0.15 Hidden Boost:</tspan> if attack detected in hidden text/DOM</text>
+      <text x="0" y="230" font-size="10" fill="#2D283E">• <tspan font-weight="600" fill="#EA580C">+0.05 Encoded Boost:</tspan> if encoded instructions vector &gt; 0.50</text>
+
+      <text x="0" y="260" font-weight="700" fill="#171322">4. Source Multipliers (Channel Risk):</text>
+      <g transform="translate(0, 272)" font-size="9" fill="#171322">
+        <rect x="0" y="0" width="85" height="24" rx="4" fill="#FFF7ED" stroke="#FDBA74"/>
+        <text x="10" y="16">Email: 1.20x</text>
+        <rect x="95" y="0" width="85" height="24" rx="4" fill="#FAF5FF" stroke="#E9D5FF"/>
+        <text x="105" y="16">API: 1.15x</text>
+        <rect x="190" y="0" width="85" height="24" rx="4" fill="#FAF5FF" stroke="#E9D5FF"/>
+        <text x="200" y="16">Code: 1.15x</text>
+        <rect x="285" y="0" width="85" height="24" rx="4" fill="#EFF6FF" stroke="#BFDBFE"/>
+        <text x="293" y="16">Web/PDF: 1.1x</text>
+      </g>
+
+      <rect y="315" width="380" height="42" rx="4" fill="#F5EEFF" stroke="#A100FF"/>
+      <text x="12" y="334" font-family="monospace" font-size="11" font-weight="700" fill="#7000B8">final_risk = min(1.0, risk * source_mult)</text>
+      <text x="12" y="348" font-size="9.5" fill="#5A189A">Normalized strictly to [0.0, 1.0] for policy evaluation</text>
+    </g>
+  </g>
+</svg>

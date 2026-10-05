@@ -67,3 +67,8 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# PDF build artifacts & visual inspection renders
+docs/rendered_pages/
+docs/test_*
+
