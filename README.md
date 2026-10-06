@@ -50,18 +50,22 @@ cp .env.example .env
 ```
 Open `.env` in your text editor and configure your LLM providers:
 ```ini
-# Provider Priority: Gemini Key 1 -> Gemini Key 2 -> Groq -> Rules-Only Fallback
-LLM_PROVIDER_ORDER=gemini_1,gemini_2,groq
+# Provider Priority: Groq Key 1 (PRIMARY) -> Groq Key 2 -> Gemini Key 1 (backup) -> Gemini Key 2 (backup) -> Rules Fallback
+LLM_PROVIDER_ORDER=groq_1,groq_2,gemini_1,gemini_2
 
+# Groq (groq.com OpenAI-compatible endpoint, NOT xAI Grok)
+GROQ_API_KEY=your_primary_groq_api_key
+GROQ_API_KEY_2=your_secondary_groq_api_key
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=openai/gpt-oss-20b
+
+# Gemini (backup semantic evaluation engines)
 GEMINI_API_KEY=your_primary_gemini_api_key
 GEMINI_API_KEY_2=your_secondary_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash
-
-# Groq (groq.com OpenAI-compatible endpoint, NOT xAI Grok)
-GROQ_API_KEY=your_groq_api_key
-GROQ_MODEL=llama-3.3-70b-versatile
 ```
-*(If no API keys are provided or all remote providers fail/cool down, AgenticGuard degrades gracefully to offline rules-only mode.)*
+*(If no API keys are provided or all remote providers fail/cool down, AgenticGuard degrades gracefully to offline rules-only mode with amber degraded indicator.)*
+
 
 Verify LLM provider connectivity:
 ```bash

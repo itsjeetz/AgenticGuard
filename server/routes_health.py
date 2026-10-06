@@ -97,6 +97,8 @@ def get_health() -> HealthResponse:
         daily_llm_calls_remaining=llm_rem,
         llm_judge_provider=active_provider,
         llm_judge_status=llm_status,
+        footer_label=llm_judge.get_footer_label(),
         llm_providers_configured=configured_providers,
         providers=provider_states,
     )
+

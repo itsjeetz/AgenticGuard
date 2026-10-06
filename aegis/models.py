@@ -100,6 +100,7 @@ class Verdict(BaseModel):
     error: str | None = None
     daily_llm_calls_remaining: int | None = None
     daily_llm_calls_limit: int | None = None
+    footer_label: str = Field(default="")
 
 
 class HealthResponse(BaseModel):
@@ -125,5 +126,7 @@ class HealthResponse(BaseModel):
     daily_llm_calls_remaining: int | None = None
     llm_judge_provider: str = "fallback (rules_only)"
     llm_judge_status: str = "fallback:rules_only"
+    footer_label: str = Field(default="")
     llm_providers_configured: list[str] = Field(default_factory=list)
     providers: dict[str, dict[str, Any]] = Field(default_factory=dict)
+

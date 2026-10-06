@@ -2,9 +2,10 @@
 """Diagnostic script to verify connectivity, authentication, and schema validation for LLM Judge providers.
 
 Tests each provider separately:
-  1. Gemini Key 1 (GEMINI_API_KEY)
-  2. Gemini Key 2 (GEMINI_API_KEY_2)
-  3. Groq (GROQ_API_KEY) at https://api.groq.com/openai/v1
+  1. Groq Key 1 (GROQ_API_KEY)
+  2. Groq Key 2 (GROQ_API_KEY_2)
+  3. Gemini Key 1 (GEMINI_API_KEY)
+  4. Gemini Key 2 (GEMINI_API_KEY_2)
 
 Never exposes credentials (shows only last 4 characters).
 """
@@ -24,23 +25,24 @@ from aegis.judge_llm import ProviderAgnosticJudge, get_llm_judge, mask_key
 
 
 def main():
-    print("\n" + "=" * 102)
+    print("\n" + "=" * 106)
     print(" AgenticGuard - LLM Judge Multi-Provider Diagnostic Tool")
-    print(" Priority Ladder: 1. Gemini Key 1 -> 2. Gemini Key 2 -> 3. Groq -> 4. Rules-Only Fallback")
-    print("=" * 102)
+    print(" Priority Ladder: 1. Groq Key 1 (PRIMARY) -> 2. Groq Key 2 -> 3. Gemini Key 1 (backup) -> 4. Gemini Key 2 (backup) -> 5. Rules Fallback")
+    print("=" * 106)
 
     judge = get_llm_judge()
     configs = judge.get_provider_configs()
     order_raw = os.environ.get("LLM_PROVIDER_ORDER", judge.default_order)
 
     print(f"Configured Priority Order : {order_raw}")
+    print(f"Effective Priority Order  : {', '.join(judge.resolve_provider_order(order_raw))}")
     print(f"Active Available Providers: {judge.get_configured_providers() or ['None (fallback:rules_only)']}\n")
 
     # Table Header
     print(f"{'Provider':<10} | {'Key Mask':<9} | {'Auth':<18} | {'Status':<7} | {'Model':<24} | {'Latency':<9} | {'Raw JSON':<8} | Details")
-    print("-" * 102)
+    print("-" * 106)
 
-    test_targets = ["gemini_1", "gemini_2", "groq"]
+    test_targets = ["groq_1", "groq_2", "gemini_1", "gemini_2"]
     results = []
 
     for name in test_targets:
@@ -55,12 +57,12 @@ def main():
         lat_disp = f"{res['latency_ms']} ms" if res["latency_ms"] > 0 else "-"
         json_disp = res["json_valid"]
         detail = res.get("details", "") or ""
-        if len(detail) > 36:
-            detail = detail[:33] + "..."
+        if len(detail) > 40:
+            detail = detail[:37] + "..."
 
         print(f"{provider_disp:<10} | {key_disp:<9} | {auth_disp:<18} | {status_disp:<7} | {model_disp:<24} | {lat_disp:<9} | {json_disp:<8} | {detail}")
 
-    print("-" * 102)
+    print("-" * 106)
 
     operational = [r for r in results if r["status_code"] == 200 and r["json_valid"] == "VALID"]
     if operational:
@@ -73,10 +75,12 @@ def main():
     # Show health state snapshot
     states = judge.get_provider_states()
     print("\n--- /api/health Provider States Snapshot ---")
-    for p, st in states.items():
-        print(f"  * {p:<8}: configured={st['configured']}, reachable={st['reachable']}, last_call_ok={st['last_call_ok']}, latency={st['last_latency_ms']}ms, error={st['last_error']}")
-    print("=" * 102 + "\n")
+    for p in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
+        st = states.get(p, {})
+        print(f"  * {p:<8}: configured={st.get('configured')}, reachable={st.get('reachable')}, last_call_ok={st.get('last_call_ok')}, latency={st.get('last_latency_ms')}ms, error={st.get('last_error')}")
+    print("=" * 106 + "\n")
 
 
 if __name__ == "__main__":
     main()
+

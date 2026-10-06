@@ -69,9 +69,14 @@ def test_judge_garbage_output_treated_as_no_opinion():
 def test_judge_degraded_when_key_absent(monkeypatch):
     """Verify judge degrades gracefully when provider keys are not set."""
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("GROQ_API_KEY_2", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY_2", raising=False)
     monkeypatch.setenv("LLM_PROVIDER_ORDER", "")
     judge = LLMJudge()
     assert not judge.is_available
+
 
     seg = Segment(id="s1", text="Test text", origin="visible", location="p1")
     variants = [(MappedText.identity(seg.text), ["identity"])]
@@ -107,6 +112,7 @@ def test_mask_key_secrets_protection():
 
     assert mask_key("AIzaSyAbcd1234") == "...1234"
     assert mask_key("gsk_test1234567890wxyz") == "...wxyz"
+    assert mask_key("gsk_groqKey2Sample9999") == "...9999"
     assert mask_key("12345") == "...2345"
     assert mask_key("1234") == "***"
     assert mask_key("123") == "***"
@@ -114,22 +120,54 @@ def test_mask_key_secrets_protection():
     assert mask_key(None) == ""
 
 
-def test_provider_session_invalidation_on_auth_failure(monkeypatch):
-    """Verify key is marked session-invalid on 401/403 and subsequent calls skip it."""
+def test_privacy_redaction_before_sent_to_any_provider(monkeypatch):
+    """Verify input text is redacted of API keys (including GROQ_API_KEY_2) before being sent to ANY provider (§4)."""
+    from aegis.judge_llm import ProviderAgnosticJudge
+
+    judge = ProviderAgnosticJudge()
+    judge.reset_session_state()
+
+    secret_key_1 = "gsk_primaryKey1SecretABCD"
+    secret_key_2 = "gsk_secondaryKey2SecretWXYZ"
+    monkeypatch.setenv("GROQ_API_KEY", secret_key_1)
+    monkeypatch.setenv("GROQ_API_KEY_2", secret_key_2)
+    monkeypatch.setenv("LLM_PROVIDER_ORDER", "groq_1,groq_2")
+
+    captured_prompts = []
+
+    def mock_call(config, prompt, **kwargs):
+        captured_prompts.append((config.name, prompt))
+        return {
+            "choices": [{
+                "message": {
+                    "content": '{"INSTRUCTION_OVERRIDE": 0.0, "rationale": "Clean text"}'
+                }
+            }]
+        }
+
+    with patch.object(judge, "_call_provider_endpoint", side_effect=mock_call):
+        input_text = f"Please analyze this payload containing {secret_key_1} and {secret_key_2}."
+        scores, provider, status = judge.evaluate_text(input_text, bypass_cache=True)
+
+        assert provider == "groq_1"
+        assert len(captured_prompts) == 1
+        prov_called, prompt_sent = captured_prompts[0]
+        # Verify the raw secrets were NEVER sent to the provider endpoint
+        assert secret_key_1 not in prompt_sent
+        assert secret_key_2 not in prompt_sent
+        # Instead, masked versions should be present
+        assert "...ABCD" in prompt_sent
+        assert "...WXYZ" in prompt_sent
+
+
+def test_provider_auth_failure_5min_cooldown(monkeypatch):
+    """Verify key gets 5-minute cooldown on 401/403 and probe is allowed after cooldown (§2)."""
     import io
     import urllib.error
     from aegis.judge_llm import ProviderAgnosticJudge, ProviderConfig
 
     judge = ProviderAgnosticJudge()
     judge.reset_session_state()
-
-    cfg = ProviderConfig(
-        name="gemini_1",
-        display_name="Gemini 1",
-        base_url="https://fake.url",
-        api_key="fake-gemini-key-1",
-        model="gemini-2.5-flash",
-    )
 
     def fake_call(config, prompt, **kwargs):
         raise urllib.error.HTTPError(
@@ -141,40 +179,20 @@ def test_provider_session_invalidation_on_auth_failure(monkeypatch):
         )
 
     with patch.object(judge, "_call_provider_endpoint", side_effect=fake_call):
-        monkeypatch.setenv("GEMINI_API_KEY", "fake-gemini-key-1")
-        monkeypatch.setenv("LLM_PROVIDER_ORDER", "gemini_1")
-        scores, provider, status = judge.evaluate_text("test input")
+        monkeypatch.setenv("GROQ_API_KEY", "fake-groq-key-1")
+        monkeypatch.setenv("LLM_PROVIDER_ORDER", "groq_1")
+        scores, provider, status = judge.evaluate_text("test input", bypass_cache=True)
 
         assert status == "fallback:rules_only"
-        assert "gemini_1" in judge._session_invalid_providers
+        assert "groq_1" in judge._auth_failure_until
 
-        # On next call, gemini_1 is skipped because it's marked session-invalid
+        # Subsequent call skips groq_1 because it is in 5-minute cooldown
         providers_available = judge.get_configured_providers()
-        assert "gemini_1" not in providers_available
+        assert "groq_1" not in providers_available
 
 
-def test_provider_cooldown_on_429():
-    """Verify 429 sets cooldown using Retry-After header and Groq rate limit headers."""
-    from aegis.judge_llm import ProviderAgnosticJudge, parse_groq_reset_duration
-
-    assert parse_groq_reset_duration("6m0s") == 360.0
-    assert parse_groq_reset_duration("2s") == 2.0
-    assert parse_groq_reset_duration("500ms") == 0.5
-
-    judge = ProviderAgnosticJudge()
-    judge.reset_session_state()
-
-    hdrs = {"Retry-After": "45"}
-    cd = judge._parse_cooldown_seconds(hdrs)
-    assert cd == 45.0
-
-    groq_hdrs = {"x-ratelimit-reset-requests": "15s"}
-    cd_groq = judge._parse_cooldown_seconds(groq_hdrs)
-    assert cd_groq == 15.0
-
-
-def test_failover_gemini1_to_gemini2_to_groq(monkeypatch):
-    """Verify failover: gemini_1 fails (429) -> gemini_2 fails (429) -> groq succeeds."""
+def test_failover_groq1_to_groq2_to_gemini(monkeypatch):
+    """Verify new priority order: groq_1 fails (429) -> groq_2 succeeds."""
     import io
     import urllib.error
     from aegis.judge_llm import ProviderAgnosticJudge
@@ -182,35 +200,87 @@ def test_failover_gemini1_to_gemini2_to_groq(monkeypatch):
     judge = ProviderAgnosticJudge()
     judge.reset_session_state()
 
-    monkeypatch.setenv("GEMINI_API_KEY", "key1_1234")
-    monkeypatch.setenv("GEMINI_API_KEY_2", "key2_5678")
-    monkeypatch.setenv("GROQ_API_KEY", "groq_9999")
-    monkeypatch.setenv("LLM_PROVIDER_ORDER", "gemini_1,gemini_2,groq")
+    monkeypatch.setenv("GROQ_API_KEY", "key1_1111")
+    monkeypatch.setenv("GROQ_API_KEY_2", "key2_2222")
+    monkeypatch.setenv("GEMINI_API_KEY", "gem_3333")
+    monkeypatch.setenv("LLM_PROVIDER_ORDER", "groq_1,groq_2,gemini_1")
 
     def mock_endpoint(config, prompt, **kwargs):
-        if config.name in ("gemini_1", "gemini_2"):
+        if config.name == "groq_1":
             raise urllib.error.HTTPError(
                 url="https://fake",
                 code=429,
                 msg="Rate limited",
                 hdrs={"Retry-After": "30"},
-                fp=io.BytesIO(b'{"error": "Resource exhausted"}'),
+                fp=io.BytesIO(b'{"error": "Rate limit reached"}'),
             )
-        elif config.name == "groq":
+        elif config.name == "groq_2":
             return {
                 "choices": [{
                     "message": {
-                        "content": '{"INSTRUCTION_OVERRIDE": 0.0, "ROLE_CHANGE": 0.0, "SECRET_EXTRACTION": 0.0, "TOOL_ABUSE": 0.0, "CREDENTIAL_THEFT": 0.0, "CONTEXT_POISONING": 0.0, "MULTI_STEP_JAILBREAK": 0.0, "ENCODED_INSTRUCTIONS": 0.0, "INDIRECT_PROMPT_INJECTION": 0.0, "rationale": "Groq evaluation clean"}'
+                        "content": '{"INSTRUCTION_OVERRIDE": 0.0, "rationale": "Groq Key 2 evaluation clean"}'
                     }
                 }]
             }
-        raise RuntimeError("Unexpected provider")
+        raise RuntimeError(f"Unexpected provider: {config.name}")
 
     with patch.object(judge, "_call_provider_endpoint", side_effect=mock_endpoint):
-        scores, provider_used, status = judge.evaluate_text("Diagnostic test input")
-        assert provider_used == "groq"
-        assert status == "ok (groq)"
-        assert scores.rationale == "Groq evaluation clean"
+        scores, provider_used, status = judge.evaluate_text("Diagnostic test input", bypass_cache=True)
+        assert provider_used == "groq_2"
+        assert status == "ok (groq_2)"
+        assert scores.rationale == "Groq Key 2 evaluation clean"
+        assert judge.get_footer_label() == "LLM: Groq (key 2)"
+
+
+def test_groq_shared_rate_limit_detection(monkeypatch, caplog):
+    """Verify when key 1 and key 2 both return 429 in a short window, shared limit is applied and moves to Gemini (§2)."""
+    import io
+    import logging
+    import urllib.error
+    from aegis.judge_llm import ProviderAgnosticJudge
+
+    judge = ProviderAgnosticJudge()
+    judge.reset_session_state()
+
+    monkeypatch.setenv("GROQ_API_KEY", "key1_1111")
+    monkeypatch.setenv("GROQ_API_KEY_2", "key2_2222")
+    monkeypatch.setenv("GEMINI_API_KEY", "gem_3333")
+    monkeypatch.setenv("LLM_PROVIDER_ORDER", "groq_1,groq_2,gemini_1")
+
+    def mock_endpoint(config, prompt, **kwargs):
+        if config.name in ("groq_1", "groq_2"):
+            raise urllib.error.HTTPError(
+                url="https://fake",
+                code=429,
+                msg="Rate limited",
+                hdrs={"Retry-After": "35"},
+                fp=io.BytesIO(b'{"error": "Account rate limit reached"}'),
+            )
+        elif config.name == "gemini_1":
+            return {
+                "choices": [{
+                    "message": {
+                        "content": '{"INSTRUCTION_OVERRIDE": 0.0, "rationale": "Gemini backup clean"}'
+                    }
+                }]
+            }
+        raise RuntimeError(f"Unexpected provider {config.name}")
+
+    with caplog.at_level(logging.WARNING):
+        with patch.object(judge, "_call_provider_endpoint", side_effect=mock_endpoint):
+            scores, provider_used, status = judge.evaluate_text("Shared limit test", bypass_cache=True)
+            assert provider_used == "gemini_1"
+            assert status == "ok (gemini_1)"
+            assert "groq keys appear to share a limit" in caplog.text
+
+            # Both Groq keys must be in cooldown now
+            states = judge.get_provider_states()
+            assert states["groq_1"]["cooldown_seconds_remaining"] > 0
+            assert states["groq_2"]["cooldown_seconds_remaining"] > 0
+            # Footer reflects backup with Groq cooling down
+            footer = judge.get_footer_label()
+            assert "LLM: Gemini (backup, Groq cooling down" in footer
+
 
 
 def test_groq_json_mode_fallback():

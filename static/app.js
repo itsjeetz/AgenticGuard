@@ -219,7 +219,9 @@ async function initDemoBanner() {
     }
 
     // Update LLM Judge footer status tag
-    if (data.llm_judge_provider && !data.llm_judge_provider.startsWith("fallback")) {
+    if (data.footer_label) {
+      updateLlmJudgeFooter(data.footer_label);
+    } else if (data.llm_judge_provider && !data.llm_judge_provider.startsWith("fallback")) {
       updateLlmJudgeFooter(data.llm_judge_provider);
     } else if (data.llm_judge_status) {
       updateLlmJudgeFooter(data.llm_judge_status);
@@ -229,22 +231,44 @@ async function initDemoBanner() {
   }
 }
 
-function updateLlmJudgeFooter(providerOrStatus, reason) {
+function updateLlmJudgeFooter(labelOrStatus, reason) {
   const footerTag = el("footerLlmJudge");
   if (!footerTag) return;
-  if (!providerOrStatus) {
-    footerTag.textContent = "LLM judge: fallback (rules_only)";
+  if (!labelOrStatus) {
+    footerTag.textContent = "LLM: Rules only (amber degraded)";
+    footerTag.classList.remove("active");
+    footerTag.classList.add("fallback");
     return;
   }
-  if (providerOrStatus.startsWith("ok") || providerOrStatus.startsWith("cached")) {
-    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
-  } else if (providerOrStatus.startsWith("fallback")) {
-    const r = reason ? ` (${reason})` : (providerOrStatus.includes(":") ? ` (${providerOrStatus.split(":")[1]})` : "");
-    footerTag.textContent = `LLM judge: fallback${r}`;
+
+  let text = labelOrStatus;
+  if (!text.startsWith("LLM:") && !text.startsWith("LLM judge:")) {
+    if (text.startsWith("ok") || text.startsWith("cached")) {
+      text = `LLM: ${text}`;
+    } else if (text.startsWith("fallback")) {
+      const r = reason ? ` (${reason})` : (text.includes(":") ? ` (${text.split(":")[1]})` : "");
+      text = `LLM: Rules only${r}`;
+    } else {
+      text = `LLM: ${text}`;
+    }
+  }
+
+  footerTag.textContent = text;
+
+  // Toggle active vs fallback style classes
+  const isFallback = text.toLowerCase().includes("rules only") ||
+                     text.toLowerCase().includes("fallback") ||
+                     text.toLowerCase().includes("degraded") ||
+                     text.toLowerCase().includes("offline");
+  if (isFallback) {
+    footerTag.classList.remove("active");
+    footerTag.classList.add("fallback");
   } else {
-    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
+    footerTag.classList.remove("fallback");
+    footerTag.classList.add("active");
   }
 }
+
 
 // ---------------------------------------------------------------------------
 // TAB 1: INSPECTOR & NEUTRALIZER
@@ -840,16 +864,21 @@ function renderVerdict(verdict, originalRawText) {
 
   // 7. Dynamic Footer LLM Judge Status (§5)
   try {
-    const judgeStatus = verdict.llm_judge_status || verdict.layer_status?.judge?.llm_judge_status;
-    const judgeProvider = verdict.layer_status?.judge?.provider;
-    if (judgeProvider && (judgeStatus?.startsWith("ok") || judgeStatus?.startsWith("cached"))) {
-      updateLlmJudgeFooter(judgeStatus);
-    } else if (judgeStatus) {
-      updateLlmJudgeFooter(judgeStatus);
+    if (verdict.footer_label) {
+      updateLlmJudgeFooter(verdict.footer_label);
+    } else {
+      const judgeStatus = verdict.llm_judge_status || verdict.layer_status?.judge?.llm_judge_status;
+      const judgeProvider = verdict.layer_status?.judge?.provider;
+      if (judgeProvider && (judgeStatus?.startsWith("ok") || judgeStatus?.startsWith("cached"))) {
+        updateLlmJudgeFooter(judgeStatus);
+      } else if (judgeStatus) {
+        updateLlmJudgeFooter(judgeStatus);
+      }
     }
   } catch (e) {
     console.error("Error updating llm judge footer:", e);
   }
+
 
   // 8. Dynamic Quota Counter update from verdict (§10)
   try {

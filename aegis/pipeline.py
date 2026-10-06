@@ -200,6 +200,7 @@ class FirewallPipeline:
                     content_sha256=cached.content_sha256,
                     daily_llm_calls_remaining=daily_rem,
                     daily_llm_calls_limit=daily_lim,
+                    footer_label=cached.footer_label or self._get_active_footer_label(),
                 )
                 try:
                     get_audit_logger().log_verdict(verdict, content=content, session_id=session_id)
@@ -387,11 +388,18 @@ class FirewallPipeline:
 
         daily_rem = None
         daily_lim = None
+        footer_label = ""
         try:
             from server.demo_mode import get_demo_manager
             stats = get_demo_manager().get_llm_stats()
             daily_rem = stats.get("remaining")
             daily_lim = stats.get("limit")
+        except Exception:
+            pass
+
+        try:
+            from aegis.judge_llm import get_llm_judge
+            footer_label = get_llm_judge().get_footer_label()
         except Exception:
             pass
 
@@ -414,7 +422,9 @@ class FirewallPipeline:
             content_sha256=content_sha256,
             daily_llm_calls_remaining=daily_rem,
             daily_llm_calls_limit=daily_lim,
+            footer_label=footer_label,
         )
+
 
         # Observability: log audit entry & record metrics (§8.1)
         try:
@@ -427,6 +437,13 @@ class FirewallPipeline:
             self.cache.put(cache_key, verdict)
 
         return verdict
+
+    def _get_active_footer_label(self) -> str:
+        try:
+            from aegis.judge_llm import get_llm_judge
+            return get_llm_judge().get_footer_label()
+        except Exception:
+            return ""
 
     def clear_cache(self) -> None:
         """Clear both pipeline LRU cache and LLM judge cache."""

@@ -150,26 +150,38 @@ class ProviderAgnosticJudge:
     """Multi-provider LLM Judge calling OpenAI-compatible /chat/completions endpoints."""
 
     def __init__(self):
-        self.default_order = "gemini,gemini_2,groq"
+        self.default_order = "groq_1,groq_2,gemini_1,gemini_2"
         self.last_status: str = "fallback:rules_only"
         self.last_provider: Optional[str] = None
         self.last_error: Optional[str] = None
 
-        # Session invalid keys: on 400, 401, 403, key is marked invalid for session
-        self._session_invalid_providers: set[str] = set()
+        # Auth failure timestamps (401/403): retries every 5 minutes (300s)
+        self._auth_failure_until: dict[str, float] = {}
 
         # Cooldown timestamps: on 429 or rate limits
         self._provider_cooldown_until: dict[str, float] = {}
 
+        # Groq 429 tracking across keys to detect shared rate limits
+        self._groq_429_history: dict[str, float] = {}
+
         # Per-provider runtime state for /api/health and check_llm diagnostics
         self._provider_states: dict[str, dict[str, Any]] = {
-            "gemini": {
+            "groq_1": {
                 "configured": False,
                 "reachable": False,
                 "last_call_ok": False,
                 "last_error": None,
                 "last_latency_ms": 0.0,
-                "model": "gemini-2.5-flash",
+                "model": "openai/gpt-oss-20b",
+                "masked_key": None,
+            },
+            "groq_2": {
+                "configured": False,
+                "reachable": False,
+                "last_call_ok": False,
+                "last_error": None,
+                "last_latency_ms": 0.0,
+                "model": "openai/gpt-oss-20b",
                 "masked_key": None,
             },
             "gemini_1": {
@@ -190,15 +202,6 @@ class ProviderAgnosticJudge:
                 "model": "gemini-2.5-flash",
                 "masked_key": None,
             },
-            "groq": {
-                "configured": False,
-                "reachable": False,
-                "last_call_ok": False,
-                "last_error": None,
-                "last_latency_ms": 0.0,
-                "model": "llama-3.3-70b-versatile",
-                "masked_key": None,
-            },
         }
 
     def get_provider_configs(self) -> dict[str, ProviderConfig]:
@@ -213,34 +216,59 @@ class ProviderAgnosticJudge:
             os.environ.get("GEMINI_MODEL_2")
             or gemini_model_1
         ).strip()
-        
+
         # Groq model: default to active production model openai/gpt-oss-20b
-        raw_groq_model = (
+        raw_groq_model_1 = (
             os.environ.get("GROQ_MODEL")
+            or os.environ.get("GROQ_MODEL_1")
             or os.environ.get("GROQ_MODEL_NAME")
             or "openai/gpt-oss-20b"
         ).strip()
-        # Fall back from decommissioned or unavailable Groq models
-        if raw_groq_model in (
-            "llama-3.3-70b-versatile",
-            "llama-3.1-70b-versatile",
-            "llama-3.1-8b-instant",
-            "llama3-70b-8192",
-            "llama3-8b-8192",
-            "mixtral-8x7b-32768",
-            "gemma2-9b-it",
-        ):
-            groq_model = "openai/gpt-oss-20b"
-        else:
-            groq_model = raw_groq_model
+        raw_groq_model_2 = (
+            os.environ.get("GROQ_MODEL_2")
+            or raw_groq_model_1
+        ).strip()
+
+        def clean_groq_model(m: str) -> str:
+            if m in (
+                "llama-3.3-70b-versatile",
+                "llama-3.1-70b-versatile",
+                "llama-3.1-8b-instant",
+                "llama3-70b-8192",
+                "llama3-8b-8192",
+                "mixtral-8x7b-32768",
+                "gemma2-9b-it",
+            ):
+                return "openai/gpt-oss-20b"
+            return m
+
+        groq_model_1 = clean_groq_model(raw_groq_model_1)
+        groq_model_2 = clean_groq_model(raw_groq_model_2)
 
         gemini_base_1 = os.environ.get(
             "GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
         ).rstrip("/")
         gemini_base_2 = os.environ.get("GEMINI_BASE_URL_2", gemini_base_1).rstrip("/")
-        groq_base = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/")
+
+        groq_base_1 = os.environ.get(
+            "GROQ_BASE_URL_1", os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+        ).rstrip("/")
+        groq_base_2 = os.environ.get("GROQ_BASE_URL_2", groq_base_1).rstrip("/")
 
         # Flexible key aliases
+        groq_key_1 = (
+            os.environ.get("GROQ_API_KEY")
+            or os.environ.get("GROQ_KEY")
+            or os.environ.get("GROQ_API_KEY_1")
+            or ""
+        ).strip()
+
+        groq_key_2 = (
+            os.environ.get("GROQ_API_KEY_2")
+            or os.environ.get("GROQ_KEY_2")
+            or ""
+        ).strip()
+
         gemini_key_1 = (
             os.environ.get("GEMINI_API_KEY")
             or os.environ.get("GOOGLE_API_KEY")
@@ -256,15 +284,23 @@ class ProviderAgnosticJudge:
             or ""
         ).strip()
 
-        groq_key = (
-            os.environ.get("GROQ_API_KEY")
-            or os.environ.get("GROQ_KEY")
-            or ""
-        ).strip()
-
         configs = {
-            "gemini": ProviderConfig(
-                name="gemini",
+            "groq_1": ProviderConfig(
+                name="groq_1",
+                display_name="Groq (Key 1)",
+                base_url=groq_base_1,
+                api_key=groq_key_1,
+                model=groq_model_1,
+            ),
+            "groq_2": ProviderConfig(
+                name="groq_2",
+                display_name="Groq (Key 2)",
+                base_url=groq_base_2,
+                api_key=groq_key_2,
+                model=groq_model_2,
+            ),
+            "gemini_1": ProviderConfig(
+                name="gemini_1",
                 display_name="Gemini (Key 1)",
                 base_url=gemini_base_1,
                 api_key=gemini_key_1,
@@ -276,13 +312,6 @@ class ProviderAgnosticJudge:
                 base_url=gemini_base_2,
                 api_key=gemini_key_2,
                 model=gemini_model_2,
-            ),
-            "groq": ProviderConfig(
-                name="groq",
-                display_name="Groq",
-                base_url=groq_base,
-                api_key=groq_key,
-                model=groq_model,
             ),
             "mistral": ProviderConfig(
                 name="mistral",
@@ -306,8 +335,9 @@ class ProviderAgnosticJudge:
                 model=os.environ.get("OLLAMA_MODEL", "llama3"),
             ),
         }
-        # Backward compatibility alias
-        configs["gemini_1"] = configs["gemini"]
+        # Backward compatibility aliases
+        configs["groq"] = configs["groq_1"]
+        configs["gemini"] = configs["gemini_1"]
         return configs
 
     def resolve_provider_order(self, order_str: Optional[str] = None) -> list[str]:
@@ -317,23 +347,25 @@ class ProviderAgnosticJudge:
         raw_tokens = [t.strip().lower() for t in order_str.split(",") if t.strip()]
         resolved = []
         for token in raw_tokens:
-            if token == "gemini":
-                resolved.append("gemini")
-                if os.environ.get("GEMINI_API_KEY_2", "").strip():
-                    resolved.append("gemini_2")
+            if token == "groq":
+                resolved.extend(["groq_1", "groq_2"])
+            elif token in ("groq_1", "groq1", "groq-1"):
+                resolved.append("groq_1")
+            elif token in ("groq_2", "groq2", "groq-2"):
+                resolved.append("groq_2")
+            elif token == "gemini":
+                resolved.extend(["gemini_1", "gemini_2"])
             elif token in ("gemini_1", "gemini1", "gemini-1"):
-                resolved.append("gemini")
+                resolved.append("gemini_1")
             elif token in ("gemini_2", "gemini2", "gemini-2"):
                 resolved.append("gemini_2")
-            elif token == "groq":
-                resolved.append("groq")
+            elif token in ("mistral", "openrouter"):
+                resolved.append(token)
             elif token == "ollama":
                 if os.environ.get("ENABLE_OLLAMA") == "1":
                     resolved.append("ollama")
-            elif token in ("mistral", "openrouter"):
-                resolved.append(token)
             else:
-                resolved.append(token)
+                logger.warning("Unknown provider '%s' in LLM_PROVIDER_ORDER ignored", token)
 
         # Deduplicate while preserving order
         seen = set()
@@ -342,18 +374,21 @@ class ProviderAgnosticJudge:
             if p not in seen:
                 seen.add(p)
                 final_order.append(p)
+        if not final_order:
+            return ["groq_1", "groq_2", "gemini_1", "gemini_2"]
         return final_order
 
     def get_configured_providers(self) -> list[str]:
-        """Get list of providers in order that have valid credentials and are not session-invalid."""
+        """Get list of providers in order that have valid credentials and are not in auth cooldown."""
         configs = self.get_provider_configs()
         order = self.resolve_provider_order()
+        now = time.time()
         available = []
         for p in order:
             cfg = configs.get(p)
             if not cfg:
                 continue
-            if p in self._session_invalid_providers:
+            if now < self._auth_failure_until.get(p, 0.0):
                 continue
             if p == "ollama":
                 if os.environ.get("ENABLE_OLLAMA") == "1" and (os.environ.get("OLLAMA_BASE_URL") or cfg.api_key):
@@ -367,30 +402,80 @@ class ProviderAgnosticJudge:
         configs = self.get_provider_configs()
         now = time.time()
         result = {}
-        for p in ("gemini_1", "gemini_2", "groq"):
+        for p in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
             cfg = configs.get(p)
             base_state = dict(self._provider_states.get(p, {}))
             if cfg:
-                canonical = "gemini" if p == "gemini_1" else p
-                base_state["configured"] = bool(cfg.api_key) and (canonical not in self._session_invalid_providers)
+                base_state["configured"] = bool(cfg.api_key) and (now >= self._auth_failure_until.get(p, 0.0))
                 base_state["model"] = cfg.model
                 base_state["masked_key"] = mask_key(cfg.api_key) if cfg.api_key else None
-                cooldown_until = self._provider_cooldown_until.get(canonical, 0.0)
+                cooldown_until = self._provider_cooldown_until.get(p, 0.0)
                 if cooldown_until > now:
                     base_state["cooldown_seconds_remaining"] = round(cooldown_until - now, 1)
                 else:
                     base_state["cooldown_seconds_remaining"] = 0.0
-                if canonical in self._session_invalid_providers:
-                    base_state["session_invalid"] = True
+                if now < self._auth_failure_until.get(p, 0.0):
+                    base_state["auth_cooldown_seconds_remaining"] = round(self._auth_failure_until[p] - now, 1)
             result[p] = base_state
+        # Backward compatibility aliases
+        result["groq"] = result["groq_1"]
+        result["gemini"] = result["gemini_1"]
         return result
 
-    def _mark_session_invalid(self, provider: str) -> None:
-        """Mark provider key invalid for the current session."""
-        canonical = "gemini" if provider == "gemini_1" else provider
-        self._session_invalid_providers.add(canonical)
-        if canonical == "gemini":
-            self._session_invalid_providers.add("gemini_1")
+    def get_footer_label(self) -> str:
+        """Generate human-readable footer status string for UI display (§Display)."""
+        now = time.time()
+        groq_1_cd = max(0.0, self._provider_cooldown_until.get("groq_1", 0.0) - now)
+        groq_2_cd = max(0.0, self._provider_cooldown_until.get("groq_2", 0.0) - now)
+        groq_cooling = max(groq_1_cd, groq_2_cd)
+
+        # If last call failed to fallback:rules_only, display degraded rules-only state
+        if self.last_status and self.last_status.startswith("fallback"):
+            if groq_cooling > 0:
+                return f"LLM: Rules only (Groq cooling down {int(groq_cooling)} s)"
+            return "LLM: Rules only (amber degraded)"
+
+        # Check last call if active
+        if self.last_provider and self.last_status and self.last_status.startswith("ok"):
+            p = self.last_provider
+            if p == "groq_1":
+                return "LLM: Groq (key 1)"
+            elif p == "groq_2":
+                return "LLM: Groq (key 2)"
+            elif p in ("gemini_1", "gemini_2"):
+                gem_num = "2" if p == "gemini_2" else "1"
+                if groq_cooling > 0:
+                    return f"LLM: Gemini (backup, Groq cooling down {int(groq_cooling)} s)"
+                return f"LLM: Gemini (key {gem_num})"
+            else:
+                return f"LLM: {p}"
+
+        # If standby (no calls made yet), determine the first eligible healthy provider
+        configs = self.get_provider_configs()
+        order = self.resolve_provider_order()
+        for p in order:
+            cfg = configs.get(p)
+            if not cfg or not cfg.api_key:
+                continue
+            if self._auth_failure_until.get(p, 0.0) > now:
+                continue
+            cd = self._provider_cooldown_until.get(p, 0.0) - now
+            if cd > 0:
+                continue
+            if p == "groq_1":
+                return "LLM: Groq (key 1)"
+            elif p == "groq_2":
+                return "LLM: Groq (key 2)"
+            elif p in ("gemini_1", "gemini_2"):
+                gem_num = "2" if p == "gemini_2" else "1"
+                if groq_cooling > 0:
+                    return f"LLM: Gemini (backup, Groq cooling down {int(groq_cooling)} s)"
+                return f"LLM: Gemini (key {gem_num})"
+
+        # If Groq is cooling down and no backup is available
+        if groq_cooling > 0:
+            return f"LLM: Rules only (Groq cooling down {int(groq_cooling)} s)"
+        return "LLM: Rules only (amber degraded)"
 
     def update_provider_state(
         self,
@@ -403,16 +488,19 @@ class ProviderAgnosticJudge:
     ) -> None:
         """Update runtime state for a provider."""
         configs = self.get_provider_configs()
-        canonical = "gemini" if provider == "gemini_1" else provider
+        canonical = "groq_1" if provider == "groq" else ("gemini_1" if provider == "gemini" else provider)
         cfg = configs.get(canonical)
 
         target_names = [canonical]
-        if canonical == "gemini":
-            target_names.append("gemini_1")
+        if canonical == "groq_1":
+            target_names.append("groq")
+        elif canonical == "gemini_1":
+            target_names.append("gemini")
 
+        now = time.time()
         for t in target_names:
             state = self._provider_states.setdefault(t, {})
-            state["configured"] = bool(cfg and cfg.api_key) and (canonical not in self._session_invalid_providers)
+            state["configured"] = bool(cfg and cfg.api_key) and (now >= self._auth_failure_until.get(canonical, 0.0))
             state["reachable"] = reachable
             state["last_call_ok"] = last_call_ok
             state["last_error"] = self.sanitize_secrets(last_error) if last_error else None
@@ -420,6 +508,7 @@ class ProviderAgnosticJudge:
             if cfg:
                 state["model"] = cfg.model
                 state["masked_key"] = mask_key(cfg.api_key) if cfg.api_key else None
+
 
     def sanitize_secrets(self, text: Optional[str]) -> str:
         """Sanitize all credentials from text or error strings (§Secrets)."""
@@ -436,9 +525,10 @@ class ProviderAgnosticJudge:
         return sanitized
 
     def reset_session_state(self) -> None:
-        """Reset session-invalid keys, cooldowns, and status (for test isolation)."""
-        self._session_invalid_providers.clear()
+        """Reset session state, cooldowns, and status (for test isolation)."""
+        self._auth_failure_until.clear()
         self._provider_cooldown_until.clear()
+        self._groq_429_history.clear()
         self.last_status = "fallback:rules_only"
         self.last_provider = None
         self.last_error = None
@@ -587,7 +677,7 @@ class ProviderAgnosticJudge:
                     )
 
             # 404: Model not found / outdated / decommissioned -> fallback if Groq
-            if status_code == 404 and config.name == "groq" and config.model != "openai/gpt-oss-120b":
+            if status_code == 404 and config.name in ("groq", "groq_1", "groq_2") and config.model != "openai/gpt-oss-120b":
                 logger.warning(
                     "Groq model '%s' returned HTTP 404. Falling back to active production model 'openai/gpt-oss-120b'.",
                     config.model,
@@ -601,20 +691,47 @@ class ProviderAgnosticJudge:
                     is_retry=is_retry,
                 )
 
-            # 400, 401, 403: Mark key invalid for the session
-            if status_code in (400, 401, 403):
-                self._mark_session_invalid(config.name)
+            # 400, 413, 422: Per-request format / payload error; NEVER disables provider for session (§2)
+            if status_code in (400, 413, 422):
                 logger.warning(
-                    "Provider '%s' returned HTTP %d. Key marked invalid for session.",
+                    "Provider '%s' returned HTTP %d: %s. Request error; provider remains active.",
+                    config.name,
+                    status_code,
+                    body_str[:120],
+                )
+                raise ProviderHTTPError(status_code, body_str, resp_headers)
+
+            # 401, 403: Invalid key / unauthorized -> retry every 5 minutes (300 seconds) (§2)
+            if status_code in (401, 403):
+                self._auth_failure_until[config.name] = time.time() + 300.0
+                logger.warning(
+                    "Provider '%s' returned HTTP %d. Auth failed; probe allowed after 5 minutes.",
                     config.name,
                     status_code,
                 )
                 raise ProviderHTTPError(status_code, body_str, resp_headers)
 
-            # 429: Rate limit / Quota exceeded -> apply cooldown
+            # 429: Rate limit / Quota exceeded -> apply cooldown and check shared limit (§2)
             if status_code == 429:
                 cooldown = self._parse_cooldown_seconds(resp_headers)
-                self._provider_cooldown_until[config.name] = time.time() + cooldown
+                now = time.time()
+                self._provider_cooldown_until[config.name] = now + cooldown
+
+                if config.name in ("groq", "groq_1", "groq_2"):
+                    prov_key = "groq_1" if config.name == "groq" else config.name
+                    self._groq_429_history[prov_key] = now
+                    other = "groq_2" if prov_key == "groq_1" else "groq_1"
+                    other_time = self._groq_429_history.get(other, 0.0)
+                    other_cd = self._provider_cooldown_until.get(other, 0.0)
+                    if (now - other_time <= 60.0) or (other_cd > now):
+                        logger.warning("groq keys appear to share a limit")
+                        shared_cd = max(cooldown, other_cd - now, 30.0)
+                        shared_until = now + shared_cd
+                        self._provider_cooldown_until["groq_1"] = shared_until
+                        self._provider_cooldown_until["groq_2"] = shared_until
+                        if "groq" in self._provider_cooldown_until:
+                            self._provider_cooldown_until["groq"] = shared_until
+
                 logger.warning(
                     "Provider '%s' returned HTTP 429. Cooldown set for %.1f seconds.",
                     config.name,
@@ -775,8 +892,8 @@ class ProviderAgnosticJudge:
         except ProviderHTTPError as e:
             dur = round((time.perf_counter() - t_start) * 1000, 2)
             clean_err = self.sanitize_secrets(e.body)
-            is_auth_failure = e.status_code in (400, 401, 403)
-            auth_status = "FAILED" if is_auth_failure else "OK"
+            is_auth_failure = e.status_code in (401, 403)
+            auth_status = "FAILED" if is_auth_failure else ("OK (rate limited)" if e.status_code == 429 else "OK")
             self.update_provider_state(name, reachable=True, last_call_ok=False, last_error=clean_err[:120], last_latency_ms=dur)
             return {
                 "provider": name,
@@ -843,28 +960,30 @@ class ProviderAgnosticJudge:
                 self.last_provider = cached_provider
                 return cached_scores, cached_provider, f"cached ({cached_provider})"
 
-        # Wrap in untrusted tags
-        user_prompt = f"<untrusted>\n{truncated_text}\n</untrusted>"
+        # Privacy (§4): The redaction step runs before the text is sent to ANY provider.
+        safe_text = self.sanitize_secrets(truncated_text)
+        user_prompt = f"<untrusted>\n{safe_text}\n</untrusted>"
 
         # 3. Determine provider order and iterate
         configs = self.get_provider_configs()
         provider_order = self.resolve_provider_order()
         last_err_msg = "no providers configured"
+        now = time.time()
 
         for provider in provider_order:
             cfg = configs.get(provider)
             if not cfg or not cfg.api_key:
                 continue
 
-            # Skip if marked invalid for this session (400/401/403)
-            if provider in self._session_invalid_providers:
-                logger.debug("Skipping provider '%s': key marked invalid for session.", provider)
+            # Skip if auth failure cooldown active (401/403, 5 min)
+            if now < self._auth_failure_until.get(provider, 0.0):
+                logger.debug("Skipping provider '%s': auth failure cooldown active.", provider)
                 continue
 
             # Skip if in cooldown (429 or rate limits)
             cooldown_until = self._provider_cooldown_until.get(provider, 0.0)
-            if time.time() < cooldown_until:
-                logger.debug("Skipping provider '%s': in cooldown for %.1fs.", provider, cooldown_until - time.time())
+            if now < cooldown_until:
+                logger.debug("Skipping provider '%s': in cooldown for %.1fs.", provider, cooldown_until - now)
                 continue
 
             # Sliding-window per-minute rate limiter
@@ -904,6 +1023,12 @@ class ProviderAgnosticJudge:
                 scores = self.parse_and_validate_json(message_content)
 
                 # Update state: real call succeeded!
+                if provider in ("groq_1", "groq_2", "groq"):
+                    self._groq_429_history.pop(provider, None)
+                    if provider == "groq_1":
+                        self._groq_429_history.pop("groq", None)
+                self._auth_failure_until.pop(provider, None)
+
                 self.update_provider_state(provider, reachable=True, last_call_ok=True, last_error=None, last_latency_ms=dur)
                 self._put_in_cache(text_hash, scores, provider)
                 self.last_status = f"ok ({provider})"
@@ -914,11 +1039,31 @@ class ProviderAgnosticJudge:
             except Exception as e:
                 dur = round((time.perf_counter() - t_start) * 1000, 2)
                 err_clean = self.sanitize_secrets(str(e))
-                # Check for auth failure / session invalidation
-                if isinstance(e, ProviderHTTPError) and e.status_code in (400, 401, 403):
-                    self._mark_session_invalid(provider)
-                elif isinstance(e, urllib.error.HTTPError) and e.code in (400, 401, 403):
-                    self._mark_session_invalid(provider)
+
+                # Check for 401/403 auth failure:
+                if (isinstance(e, ProviderHTTPError) and e.status_code in (401, 403)) or (isinstance(e, urllib.error.HTTPError) and e.code in (401, 403)):
+                    self._auth_failure_until[provider] = time.time() + 300.0
+
+                # Check for 429 rate limit:
+                elif (isinstance(e, ProviderHTTPError) and e.status_code == 429) or (isinstance(e, urllib.error.HTTPError) and e.code == 429):
+                    hdrs = getattr(e, "headers", None)
+                    cooldown = self._parse_cooldown_seconds(hdrs)
+                    cur_now = time.time()
+                    self._provider_cooldown_until[provider] = cur_now + cooldown
+                    if provider in ("groq_1", "groq_2", "groq"):
+                        prov_key = "groq_1" if provider == "groq" else provider
+                        self._groq_429_history[prov_key] = cur_now
+                        other = "groq_2" if prov_key == "groq_1" else "groq_1"
+                        other_time = self._groq_429_history.get(other, 0.0)
+                        other_cd = self._provider_cooldown_until.get(other, 0.0)
+                        if (cur_now - other_time <= 60.0) or (other_cd > cur_now):
+                            logger.warning("groq keys appear to share a limit")
+                            shared_cd = max(cooldown, other_cd - cur_now, 30.0)
+                            shared_until = cur_now + shared_cd
+                            self._provider_cooldown_until["groq_1"] = shared_until
+                            self._provider_cooldown_until["groq_2"] = shared_until
+                            if "groq" in self._provider_cooldown_until:
+                                self._provider_cooldown_until["groq"] = shared_until
 
                 self.update_provider_state(provider, reachable=True, last_call_ok=False, last_error=err_clean[:120], last_latency_ms=dur)
                 logger.warning("LLM Judge provider '%s' failed (model=%s): %s", provider, cfg.model, err_clean)
@@ -932,6 +1077,7 @@ class ProviderAgnosticJudge:
         self.last_error = last_err_msg
         logger.info("LLM Judge all providers failed (%s). Operating in fallback:rules_only.", last_err_msg)
         return JudgeScores(rationale=f"LLM judge fallback: {last_err_msg}"), "", fallback_status
+
 
     def detect(
         self,
