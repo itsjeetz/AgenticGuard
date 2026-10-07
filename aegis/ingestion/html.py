@@ -268,12 +268,13 @@ class HtmlAdapter(BaseAdapter):
                 combined_text = " ".join(direct_texts)
                 loc = self._get_selector(tag)
                 origin = "hidden" if hidden_reason else "visible"
+                loc_label = f"hidden HTML: <{loc}> ({hidden_reason.replace('_', ':')})" if hidden_reason else f"visible text: <{loc}>"
                 segments.append(
                     Segment(
                         id=f"seg-html-{seg_idx}",
                         text=combined_text,
                         origin=origin,
-                        location=loc,
+                        location=loc_label,
                         hidden_reason=hidden_reason,
                     )
                 )

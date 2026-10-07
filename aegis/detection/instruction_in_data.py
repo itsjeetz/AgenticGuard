@@ -88,12 +88,13 @@ class InstructionInDataDetector:
                 orig_span = mt.to_original(sent_start, sent_end)
 
                 # Target attack category based on content
+                low_clause = clause.lower()
                 attack_type = AttackType.INDIRECT_PROMPT_INJECTION
-                if exfil_match and ("drop table" in clause.lower() or "run" in clause.lower() or "execute" in clause.lower()):
+                if exfil_match and any(w in low_clause for w in ("drop table", "run", "execute", "email", "mailbox", "database", "curl", "bash", "transfer", "forward")):
                     attack_type = AttackType.TOOL_ABUSE
-                elif exfil_match and ("password" in clause.lower() or "credential" in clause.lower()):
+                elif exfil_match and ("password" in low_clause or "credential" in low_clause):
                     attack_type = AttackType.CREDENTIAL_THEFT
-                elif exfil_match and ("prompt" in clause.lower() or "secret" in clause.lower() or "key" in clause.lower()):
+                elif exfil_match and ("prompt" in low_clause or "secret" in low_clause or "key" in low_clause):
                     attack_type = AttackType.SECRET_EXTRACTION
 
                 findings.append(
@@ -106,6 +107,7 @@ class InstructionInDataDetector:
                         detector="instruction_in_data",
                         layer="rules",
                         variant_chain=variant.chain,
+                        location=segment.location or segment.origin,
                     )
                 )
 

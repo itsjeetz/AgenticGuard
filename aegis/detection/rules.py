@@ -70,10 +70,11 @@ class RuleDetector:
                         detector=pat.id,
                         layer="rules",
                         variant_chain=v_chain,
+                        location=segment.location or segment.origin,
                     )
                     findings.append(base_finding)
 
-                    # Meta-label 1: ENCODED_INSTRUCTIONS if finding came from a non-original variant
+                    # Meta-label: ENCODED_INSTRUCTIONS if finding came from a non-original deobfuscated variant
                     if v_chain:
                         enc_key = (AttackType.ENCODED_INSTRUCTIONS, orig_span, "encoded_meta")
                         if enc_key not in seen_keys:
@@ -88,24 +89,7 @@ class RuleDetector:
                                     detector="encoded_instructions_meta",
                                     layer="rules",
                                     variant_chain=v_chain,
-                                )
-                            )
-
-                    # Meta-label 2: INDIRECT_PROMPT_INJECTION if delivered on an untrusted source
-                    if ctx and ctx.trust == Trust.UNTRUSTED:
-                        ind_key = (AttackType.INDIRECT_PROMPT_INJECTION, orig_span, "indirect_meta")
-                        if ind_key not in seen_keys:
-                            seen_keys.add(ind_key)
-                            findings.append(
-                                Finding(
-                                    attack_type=AttackType.INDIRECT_PROMPT_INJECTION,
-                                    score=min(1.0, pat.weight * 0.90),
-                                    segment_id=segment.id,
-                                    span_original=orig_span,
-                                    evidence=evidence,
-                                    detector="indirect_prompt_meta",
-                                    layer="rules",
-                                    variant_chain=v_chain,
+                                    location=segment.location or segment.origin,
                                 )
                             )
 

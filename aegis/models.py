@@ -76,6 +76,7 @@ class Finding(BaseModel):
     detector: str
     layer: DetectorLayer
     variant_chain: list[str] = Field(default_factory=list)
+    location: str | None = None  # e.g. "field:notes", "display:none", "comment", "visible text"
 
 
 class Verdict(BaseModel):
@@ -89,6 +90,7 @@ class Verdict(BaseModel):
     category_scores: dict[AttackType, float] = Field(default_factory=dict)
     detected: list[AttackType] = Field(default_factory=list)
     findings: list[Finding] = Field(default_factory=list)
+    category_details: dict[str, Any] = Field(default_factory=dict)
     degraded: bool = False
     layer_status: dict[str, dict[str, Any]] = Field(default_factory=dict)
     llm_judge_status: str | None = None

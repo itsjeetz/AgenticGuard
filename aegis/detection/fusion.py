@@ -34,15 +34,23 @@ def fuse_findings(
 ) -> tuple[float, dict[AttackType, float]]:
     """Compute overall combined risk score and per-category scores (§5.4).
     
-    Per-category confidence strategy:
-    Combines max(rules, llm_judge) per category with multi-layer consensus boost
-    when multiple layers independently flag an attack type (score >= 0.50).
-    Guarantees ALL 9 AttackType keys are present in category_scores every time.
+    CONFIDENCE SEMANTICS:
+    The percentage score represents calibrated detection confidence (evidence strength and
+    multi-layer corroboration across independent layers: rules and LLM judge), NOT a
+    frequentist probability.
+    
+    Resolution & Consensus Strategy:
+    1. A category receives a non-zero score ONLY if there is direct supporting evidence.
+    2. Single-layer detection is strictly capped at 0.85 (85%) so single layers do not saturate.
+    3. Multi-layer agreement (both rules and judge independently detecting with score >= 0.40)
+       uses Noisy-OR to allow scores to reach 0.90 to 1.00 based on corroborated certainty.
+    4. Guarantees ALL 9 AttackType keys are present in category_scores every time.
     """
     by_cat: dict[AttackType, float] = {at: 0.0 for at in ALL_ATTACK_TYPES}
 
     for at in ALL_ATTACK_TYPES:
-        cat_findings = [f for f in findings if f.attack_type == at]
+        # Require findings tied specifically to this category with non-empty evidence
+        cat_findings = [f for f in findings if f.attack_type == at and f.evidence and f.evidence.strip()]
         if not cat_findings:
             continue
 
@@ -51,17 +59,25 @@ def fuse_findings(
         c_score = max([f.score for f in cat_findings if f.layer == "classifier"], default=0.0)
         other_score = max([f.score for f in cat_findings if f.layer not in ("rules", "judge", "llm_judge", "classifier")], default=0.0)
 
-        max_score = max(r_score, j_score, c_score, other_score)
+        # Count independent layers that confirmed this category with confidence >= 0.40
+        agreeing_layers = sum(1 for s in (r_score, j_score, c_score) if s >= 0.40)
 
-        # Multi-layer consensus boost: if 2+ layers independently flag the vector with confidence >= 0.50
-        active_layers_flagged = sum(1 for s in (r_score, c_score, j_score, other_score) if s >= 0.50)
-        if active_layers_flagged >= 2:
-            max_score = min(1.0, max_score * 1.05)
-
-        by_cat[at] = round(max_score, 4)
+        if agreeing_layers >= 2:
+            # Independent multi-layer consensus: combine with Noisy-OR across agreeing layers
+            p_clean = (1.0 - r_score) * (1.0 - j_score)
+            fused = min(1.0, max(0.0, 1.0 - p_clean))
+            # Guarantee fused is at least the highest single layer score
+            fused = max(fused, r_score, j_score)
+            by_cat[at] = round(fused, 4)
+        else:
+            # Single-layer evidence: cap strictly below 1.0 (cap = 0.85) to preserve resolution
+            single_max = max(r_score, j_score, c_score, other_score)
+            capped_score = min(0.85, single_max * 0.85)
+            by_cat[at] = round(capped_score, 4)
 
     if not findings:
         return 0.0, by_cat
+
 
     # 1. Category maximums and Noisy-OR probability combination
     p = 1.0

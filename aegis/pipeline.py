@@ -379,11 +379,54 @@ class FirewallPipeline:
         timings["total_ms"] = total_time
 
         # Compute detected categories (score >= threshold, default 0.50)
+        # Constraint: a category should only show "Detected" when its own score passes the threshold,
+        # with at least one evidence snippet tied to that category.
         cat_thresh_map = getattr(getattr(self.policy, "thresholds", None), "category_thresholds", {}) or {}
         detected = [
             cat for cat, s in category_scores.items()
             if s >= cat_thresh_map.get(cat, 0.50)
+            and any(f.attack_type == cat and f.evidence and f.evidence.strip() for f in all_findings)
         ]
+
+        from aegis.detection.fusion import ALL_ATTACK_TYPES
+        category_details: dict[str, Any] = {}
+        for cat in ALL_ATTACK_TYPES:
+            cat_finds = [f for f in all_findings if f.attack_type == cat and f.evidence and f.evidence.strip()]
+            r_finds = [f for f in cat_finds if f.layer == "rules"]
+            j_finds = [f for f in cat_finds if f.layer in ("judge", "llm_judge")]
+            c_finds = [f for f in cat_finds if f.layer == "classifier"]
+
+            r_max = max([f.score for f in r_finds], default=0.0)
+            j_max = max([f.score for f in j_finds], default=0.0)
+            c_max = max([f.score for f in c_finds], default=0.0)
+
+            r_ids = [f.detector for f in r_finds]
+            j_provider = next((f.detector.replace("llm_judge_", "") for f in j_finds if f.detector.startswith("llm_judge_")), None)
+
+            primary_ev = cat_finds[0].evidence if cat_finds else ""
+            primary_loc = cat_finds[0].location or "visible text" if cat_finds else "visible text"
+
+            layers_found = []
+            if r_finds:
+                layers_found.append("rules")
+            if j_finds:
+                layers_found.append("judge")
+            if c_finds:
+                layers_found.append("classifier")
+
+            category_details[cat.value] = {
+                "fused_score": category_scores.get(cat, 0.0),
+                "raw_rules_score": round(r_max, 4),
+                "raw_judge_score": round(j_max, 4),
+                "raw_classifier_score": round(c_max, 4),
+                "evidence": primary_ev,
+                "location": primary_loc,
+                "layers": layers_found,
+                "rule_ids": r_ids,
+                "judge_provider": j_provider,
+                "is_detected": (cat in detected),
+            }
+
         llm_judge_status = layer_status.get("judge", {}).get("llm_judge_status")
 
         daily_rem = None
@@ -412,6 +455,7 @@ class FirewallPipeline:
             category_scores=category_scores,
             detected=detected,
             findings=all_findings,
+            category_details=category_details,
             degraded=is_degraded,
             layer_status=layer_status,
             llm_judge_status=llm_judge_status,

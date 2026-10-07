@@ -42,7 +42,7 @@ def get_max_image_pixels() -> int:
 TIMEOUTS = {
     "rules": 0.50,       # 500 ms
     "classifier": 1.0,   # 1 s
-    "judge": 8.0,        # 8 s
+    "judge": 15.0,       # 15 s
     "ocr": 10.0,         # 10 s
 }
 

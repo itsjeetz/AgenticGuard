@@ -452,6 +452,7 @@ function renderAttackDetection(verdict) {
 
   list.innerHTML = "";
   const catScores = verdict.category_scores || {};
+  const catDetails = verdict.category_details || {};
   const detectedList = verdict.detected || [];
 
   // Evaluate each of the 9 attack types
@@ -468,6 +469,7 @@ function renderAttackDetection(verdict) {
       percentage,
       isDetected,
       originalIndex,
+      detail: catDetails[item.key] || {},
     };
   });
 
@@ -492,7 +494,65 @@ function renderAttackDetection(verdict) {
 
   evaluated.forEach((item) => {
     const row = document.createElement("div");
-    row.className = `attack-detection-row ${item.isDetected ? "detected" : "muted"}`;
+    const detail = item.detail;
+    const hasEvidence = item.isDetected && Boolean((detail.evidence && detail.evidence.trim()) || detail.location || detail.raw_rules_score !== undefined || detail.raw_judge_score !== undefined);
+
+    row.className = `attack-detection-row ${item.isDetected ? "detected" : "muted"}${hasEvidence ? " has-evidence" : ""}`;
+
+    const rulesRaw = Number(detail.raw_rules_score ?? 0.0);
+    const judgeRaw = Number(detail.raw_judge_score ?? 0.0);
+    const layers = detail.layers || [];
+    let layerBadgeText = "None";
+    let layerClass = "none";
+    if (layers.includes("rules") && layers.includes("judge")) {
+      layerBadgeText = "Rules + LLM Judge";
+      layerClass = "both";
+    } else if (layers.includes("judge")) {
+      layerBadgeText = "LLM Judge";
+      layerClass = "judge";
+    } else if (layers.includes("rules")) {
+      layerBadgeText = "Rules (L3a)";
+      layerClass = "rules";
+    }
+
+    const slug = item.key.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
+    const drawerId = `drawer-evidence-${slug}`;
+    const toggleBtnId = `btn-evidence-${slug}`;
+
+    const drawerHtml = hasEvidence ? `
+      <div id="${drawerId}" class="attack-evidence-drawer hidden" role="region" aria-labelledby="${toggleBtnId}" hidden>
+        <div class="evidence-meta-row">
+          <div class="evidence-meta-item">
+            <span class="evidence-meta-label">Layer:</span>
+            <span class="evidence-pill ${layerClass}">${escapeHtml(layerBadgeText)}</span>
+          </div>
+          <div class="evidence-meta-item">
+            <span class="evidence-meta-label">Location:</span>
+            <span class="evidence-pill loc-pill">${escapeHtml(detail.location || "visible text")}</span>
+          </div>
+        </div>
+        <div class="evidence-scores-row">
+          <span class="evidence-meta-label">Raw Scores:</span>
+          <div class="evidence-score-chips">
+            <span class="score-chip">Rules: <strong>${Math.round(rulesRaw * 100)}%</strong></span>
+            <span class="score-chip">LLM Judge: <strong>${Math.round(judgeRaw * 100)}%</strong></span>
+            <span class="score-chip fused">Fused: <strong>${item.percentage}%</strong></span>
+          </div>
+        </div>
+        <div class="evidence-snippet-container">
+          <span class="evidence-meta-label">Evidence Snippet:</span>
+          <div class="evidence-snippet-box"><code>${escapeHtml(detail.evidence || "Direct vector pattern match")}</code></div>
+        </div>
+      </div>
+    ` : "";
+
+    const toggleBtnHtml = hasEvidence ? `
+      <button id="${toggleBtnId}" class="btn-evidence-toggle" type="button" aria-expanded="false" aria-controls="${drawerId}" title="Toggle evidence breakdown">
+        <span>Evidence</span>
+        <svg class="chevron-svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+    ` : "";
+
     row.innerHTML = `
       <div class="attack-row-info">
         <span class="attack-row-title">${escapeHtml(item.name)}</span>
@@ -501,12 +561,43 @@ function renderAttackDetection(verdict) {
             ${item.isDetected ? "Detected" : "Not detected"}
           </span>
           <span class="attack-row-pct">${item.percentage}%</span>
+          ${toggleBtnHtml}
         </div>
       </div>
       <div class="attack-bar-bg">
         <div class="attack-bar-fill" style="width: ${item.percentage}%"></div>
       </div>
+      ${drawerHtml}
     `;
+
+    if (hasEvidence) {
+      const toggleBtn = row.querySelector(".btn-evidence-toggle");
+      const drawer = row.querySelector(".attack-evidence-drawer");
+      if (toggleBtn && drawer) {
+        const toggleDrawer = (e) => {
+          if (e) e.stopPropagation();
+          const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
+          const nextExpanded = !isExpanded;
+          toggleBtn.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
+          toggleBtn.classList.toggle("expanded", nextExpanded);
+          drawer.classList.toggle("hidden", !nextExpanded);
+          if (nextExpanded) {
+            drawer.removeAttribute("hidden");
+          } else {
+            drawer.setAttribute("hidden", "");
+          }
+        };
+
+        toggleBtn.addEventListener("click", toggleDrawer);
+        toggleBtn.addEventListener("keydown", (e) => {
+          if (e.key === " " || e.key === "Spacebar") {
+            e.preventDefault();
+            toggleDrawer(e);
+          }
+        });
+      }
+    }
+
     list.appendChild(row);
   });
 }

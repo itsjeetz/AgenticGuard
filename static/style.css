@@ -705,7 +705,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 7px;
-  max-height: 280px;
+  max-height: 480px;
   overflow-y: auto;
   padding-right: 2px;
 }
@@ -832,6 +832,190 @@ body {
   background-color: var(--accent-red-bg);
   border-color: var(--accent-red);
 }
+
+/* Expandable Evidence Row Styles (§4 UI) */
+.btn-evidence-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(161, 0, 255, 0.10);
+  border: 1px solid rgba(161, 0, 255, 0.25);
+  color: var(--accent-purple);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-evidence-toggle:hover {
+  background: rgba(161, 0, 255, 0.20);
+  border-color: rgba(161, 0, 255, 0.45);
+}
+
+.btn-evidence-toggle:focus-visible {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 1px;
+}
+
+.btn-evidence-toggle .chevron-svg {
+  transition: transform 0.2s ease;
+}
+
+.btn-evidence-toggle.expanded .chevron-svg {
+  transform: rotate(180deg);
+}
+
+.attack-evidence-drawer {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg-card);
+  border: 1px solid rgba(161, 0, 255, 0.20);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11.5px;
+  animation: fadeInEvidence 0.2s ease-out;
+}
+
+.attack-evidence-drawer.hidden,
+.attack-evidence-drawer[hidden] {
+  display: none !important;
+}
+
+@keyframes fadeInEvidence {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-evidence-toggle,
+  .btn-evidence-toggle .chevron-svg,
+  .attack-evidence-drawer {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.evidence-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.evidence-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.evidence-meta-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.evidence-pill {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.evidence-pill.both {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
+.evidence-pill.judge {
+  background: rgba(161, 0, 255, 0.15);
+  color: var(--accent-purple);
+  border: 1px solid rgba(161, 0, 255, 0.35);
+}
+
+.evidence-pill.rules {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-amber);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.evidence-pill.loc-pill {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.evidence-scores-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.evidence-score-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.score-chip {
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  color: var(--text-muted);
+}
+
+.score-chip strong {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}
+
+.score-chip.fused {
+  border-color: rgba(161, 0, 255, 0.3);
+  background: rgba(161, 0, 255, 0.08);
+  color: var(--accent-purple);
+}
+
+.score-chip.fused strong {
+  color: var(--accent-purple);
+}
+
+.evidence-snippet-container {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.evidence-snippet-box {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 5px 8px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.evidence-snippet-box code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 
 /* Category Scores Fallback / General */
 .layer-timings-section h4 {
