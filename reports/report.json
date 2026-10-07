@@ -2,7 +2,12 @@
   "metadata": {
     "split": "test",
     "mode": "cascade",
-    "timestamp": "2026-09-23T21:07:15.181116+00:00",
+    "timestamp": "2026-10-07T22:08:56.324138+00:00",
+    "git_commit": "6d7e7e3",
+    "provider": "groq_2 (10), rules_only (186)",
+    "is_partial": false,
+    "items_evaluated": 196,
+    "total_items": 196,
     "test_hash_info": {
       "matches": true,
       "computed": "c9721c9e17077e1b70a3ff55a5e3b084e080773a54d45c00e08afe5acd02ed0d",
@@ -14,61 +19,70 @@
       "total_items": 196,
       "total_attacks": 144,
       "total_benign": 52,
-      "tp": 94,
-      "fn": 50,
-      "fp": 1,
-      "tn": 51,
-      "precision": 0.9895,
-      "recall": 0.6528,
-      "f1": 0.7866,
-      "fpr": 0.0192,
-      "accuracy": 0.7398
+      "tp": 90,
+      "fn": 54,
+      "fp": 0,
+      "tn": 52,
+      "precision": 1.0,
+      "recall": 0.625,
+      "f1": 0.7692,
+      "fpr": 0.0,
+      "accuracy": 0.7245
     },
     "categories": {
       "INSTRUCTION_OVERRIDE": {
         "count": 16,
-        "flagged_recall": 0.875,
-        "category_correct_recall": 0.75
+        "flagged_recall": 0.8125,
+        "category_correct_recall": 0.8125,
+        "legacy_unconditioned_recall": 0.8125
       },
       "ROLE_CHANGE": {
         "count": 16,
-        "flagged_recall": 0.6875,
-        "category_correct_recall": 0.5625
+        "flagged_recall": 0.625,
+        "category_correct_recall": 0.5625,
+        "legacy_unconditioned_recall": 0.5625
       },
       "SECRET_EXTRACTION": {
         "count": 16,
-        "flagged_recall": 0.5,
-        "category_correct_recall": 0.3125
+        "flagged_recall": 0.5625,
+        "category_correct_recall": 0.3125,
+        "legacy_unconditioned_recall": 0.3125
       },
       "TOOL_ABUSE": {
         "count": 16,
         "flagged_recall": 0.75,
-        "category_correct_recall": 0.625
+        "category_correct_recall": 0.6875,
+        "legacy_unconditioned_recall": 0.6875
       },
       "CREDENTIAL_THEFT": {
         "count": 16,
-        "flagged_recall": 0.5,
-        "category_correct_recall": 0.25
+        "flagged_recall": 0.25,
+        "category_correct_recall": 0.25,
+        "legacy_unconditioned_recall": 0.25
       },
       "CONTEXT_POISONING": {
         "count": 16,
-        "flagged_recall": 0.5625,
-        "category_correct_recall": 0.25
+        "flagged_recall": 0.3125,
+        "category_correct_recall": 0.25,
+        "legacy_unconditioned_recall": 0.25
       },
       "MULTI_STEP_JAILBREAK": {
         "count": 16,
-        "flagged_recall": 0.5625,
-        "category_correct_recall": 0.5625
+        "flagged_recall": 0.75,
+        "category_correct_recall": 0.75,
+        "legacy_unconditioned_recall": 0.75
       },
       "ENCODED_INSTRUCTIONS": {
         "count": 16,
-        "flagged_recall": 0.75,
-        "category_correct_recall": 0.625
+        "flagged_recall": 0.625,
+        "category_correct_recall": 0.625,
+        "legacy_unconditioned_recall": 0.625
       },
       "INDIRECT_PROMPT_INJECTION": {
         "count": 117,
-        "flagged_recall": 0.6752,
-        "category_correct_recall": 0.9915
+        "flagged_recall": 0.6154,
+        "category_correct_recall": 0.188,
+        "legacy_unconditioned_recall": 0.188
       }
     },
     "sources": {
@@ -76,55 +90,67 @@
         "count": 39,
         "attack_count": 28,
         "benign_count": 11,
-        "tp": 15,
+        "tp": 19,
         "fp": 0,
-        "recall": 0.5357,
-        "fpr": 0.0
+        "recall": 0.6786,
+        "flagged_recall": 0.6786,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "web_page": {
         "count": 14,
         "attack_count": 12,
         "benign_count": 2,
-        "tp": 6,
+        "tp": 8,
         "fp": 0,
-        "recall": 0.5,
-        "fpr": 0.0
+        "recall": 0.6667,
+        "flagged_recall": 0.6667,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "pdf": {
         "count": 18,
         "attack_count": 12,
         "benign_count": 6,
-        "tp": 6,
+        "tp": 7,
         "fp": 0,
-        "recall": 0.5,
-        "fpr": 0.0
+        "recall": 0.5833,
+        "flagged_recall": 0.5833,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "email": {
         "count": 18,
         "attack_count": 12,
         "benign_count": 6,
-        "tp": 12,
+        "tp": 8,
         "fp": 0,
-        "recall": 1.0,
-        "fpr": 0.0
+        "recall": 0.6667,
+        "flagged_recall": 0.6667,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "markdown": {
         "count": 16,
         "attack_count": 12,
         "benign_count": 4,
-        "tp": 12,
+        "tp": 6,
         "fp": 0,
-        "recall": 1.0,
-        "fpr": 0.0
+        "recall": 0.5,
+        "flagged_recall": 0.5,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "html": {
         "count": 17,
         "attack_count": 12,
         "benign_count": 5,
-        "tp": 6,
+        "tp": 9,
         "fp": 0,
-        "recall": 0.5,
-        "fpr": 0.0
+        "recall": 0.75,
+        "flagged_recall": 0.75,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "docx": {
         "count": 17,
@@ -133,34 +159,42 @@
         "tp": 11,
         "fp": 0,
         "recall": 0.9167,
-        "fpr": 0.0
+        "flagged_recall": 0.9167,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "api_response": {
         "count": 15,
         "attack_count": 11,
         "benign_count": 4,
-        "tp": 7,
+        "tp": 10,
         "fp": 0,
-        "recall": 0.6364,
-        "fpr": 0.0
+        "recall": 0.9091,
+        "flagged_recall": 0.9091,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "ocr_text": {
         "count": 13,
         "attack_count": 11,
         "benign_count": 2,
-        "tp": 9,
+        "tp": 6,
         "fp": 0,
-        "recall": 0.8182,
-        "fpr": 0.0
+        "recall": 0.5455,
+        "flagged_recall": 0.5455,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "source_code": {
         "count": 16,
         "attack_count": 11,
         "benign_count": 5,
-        "tp": 10,
-        "fp": 1,
-        "recall": 0.9091,
-        "fpr": 0.2
+        "tp": 6,
+        "fp": 0,
+        "recall": 0.5455,
+        "flagged_recall": 0.5455,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       },
       "image": {
         "count": 13,
@@ -169,7 +203,9 @@
         "tp": 0,
         "fp": 0,
         "recall": 0.0,
-        "fpr": 0.0
+        "flagged_recall": 0.0,
+        "fpr": 0.0,
+        "benign_fpr": 0.0
       }
     },
     "heatmap": {
@@ -181,8 +217,8 @@
         },
         "comment": {
           "count": 2,
-          "flagged": 1,
-          "recall": 0.5
+          "flagged": 2,
+          "recall": 1.0
         },
         "offscreen": {
           "count": 1,
@@ -206,8 +242,8 @@
         },
         "image_alt": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "key_name": {
           "count": 1,
@@ -216,8 +252,8 @@
         },
         "string_literal": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "confusable_chars": {
           "count": 1,
@@ -253,13 +289,13 @@
       "INDIRECT_PROMPT_INJECTION": {
         "comment": {
           "count": 15,
-          "flagged": 12,
-          "recall": 0.8
+          "flagged": 11,
+          "recall": 0.7333
         },
         "offscreen": {
           "count": 6,
-          "flagged": 4,
-          "recall": 0.6667
+          "flagged": 5,
+          "recall": 0.8333
         },
         "metadata": {
           "count": 1,
@@ -278,23 +314,23 @@
         },
         "image_alt": {
           "count": 3,
-          "flagged": 3,
-          "recall": 1.0
+          "flagged": 1,
+          "recall": 0.3333
         },
         "key_name": {
           "count": 4,
-          "flagged": 3,
-          "recall": 0.75
+          "flagged": 4,
+          "recall": 1.0
         },
         "string_literal": {
           "count": 4,
-          "flagged": 3,
-          "recall": 0.75
+          "flagged": 0,
+          "recall": 0.0
         },
         "confusable_chars": {
           "count": 6,
-          "flagged": 5,
-          "recall": 0.8333
+          "flagged": 4,
+          "recall": 0.6667
         },
         "small_text": {
           "count": 3,
@@ -318,18 +354,18 @@
         },
         "link_title": {
           "count": 3,
-          "flagged": 3,
-          "recall": 1.0
+          "flagged": 2,
+          "recall": 0.6667
         },
         "metadata_field": {
           "count": 4,
-          "flagged": 3,
-          "recall": 0.75
+          "flagged": 4,
+          "recall": 1.0
         },
         "noisy_visible": {
           "count": 5,
-          "flagged": 4,
-          "recall": 0.8
+          "flagged": 2,
+          "recall": 0.4
         },
         "faint_text": {
           "count": 3,
@@ -338,8 +374,8 @@
         },
         "tiny_font": {
           "count": 6,
-          "flagged": 3,
-          "recall": 0.5
+          "flagged": 5,
+          "recall": 0.8333
         },
         "body_visible": {
           "count": 3,
@@ -358,8 +394,8 @@
         },
         "inline_html": {
           "count": 3,
-          "flagged": 3,
-          "recall": 1.0
+          "flagged": 2,
+          "recall": 0.6667
         },
         "exif_comment": {
           "count": 2,
@@ -373,18 +409,18 @@
         },
         "nested_value": {
           "count": 3,
-          "flagged": 1,
-          "recall": 0.3333
+          "flagged": 2,
+          "recall": 0.6667
         },
         "docstring": {
           "count": 2,
-          "flagged": 2,
-          "recall": 1.0
+          "flagged": 1,
+          "recall": 0.5
         },
         "quoted_thread": {
           "count": 3,
-          "flagged": 3,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "meta_tag": {
           "count": 2,
@@ -393,23 +429,23 @@
         },
         "html_hidden": {
           "count": 3,
-          "flagged": 3,
-          "recall": 1.0
+          "flagged": 2,
+          "recall": 0.6667
         },
         "alt_text": {
           "count": 2,
-          "flagged": 1,
-          "recall": 0.5
+          "flagged": 2,
+          "recall": 1.0
         },
         "base64": {
           "count": 1,
-          "flagged": 0,
-          "recall": 0.0
+          "flagged": 1,
+          "recall": 1.0
         },
         "tiny_text": {
           "count": 1,
-          "flagged": 0,
-          "recall": 0.0
+          "flagged": 1,
+          "recall": 1.0
         },
         "attachment": {
           "count": 1,
@@ -435,8 +471,8 @@
         },
         "comment": {
           "count": 3,
-          "flagged": 3,
-          "recall": 1.0
+          "flagged": 2,
+          "recall": 0.6667
         },
         "noisy_visible": {
           "count": 1,
@@ -502,13 +538,13 @@
         },
         "offscreen": {
           "count": 2,
-          "flagged": 1,
-          "recall": 0.5
+          "flagged": 2,
+          "recall": 1.0
         },
         "tiny_font": {
           "count": 1,
-          "flagged": 0,
-          "recall": 0.0
+          "flagged": 1,
+          "recall": 1.0
         },
         "annotation": {
           "count": 1,
@@ -542,8 +578,8 @@
         },
         "noisy_visible": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "exif_comment": {
           "count": 1,
@@ -579,8 +615,8 @@
         },
         "nested_value": {
           "count": 1,
-          "flagged": 0,
-          "recall": 0.0
+          "flagged": 1,
+          "recall": 1.0
         },
         "docstring": {
           "count": 1,
@@ -609,8 +645,8 @@
         },
         "tiny_font": {
           "count": 1,
-          "flagged": 0,
-          "recall": 0.0
+          "flagged": 1,
+          "recall": 1.0
         },
         "visible_paragraph": {
           "count": 1,
@@ -624,13 +660,13 @@
         },
         "quoted_thread": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "link_title": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "metadata_field": {
           "count": 1,
@@ -676,13 +712,13 @@
         },
         "comment": {
           "count": 2,
-          "flagged": 2,
-          "recall": 1.0
+          "flagged": 1,
+          "recall": 0.5
         },
         "quoted_thread": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "nested_value": {
           "count": 1,
@@ -691,13 +727,13 @@
         },
         "docstring": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "confusable_chars": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "visible_text": {
           "count": 1,
@@ -728,23 +764,23 @@
         },
         "quoted_thread": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "inline_html": {
-          "count": 1,
-          "flagged": 1,
-          "recall": 1.0
-        },
-        "key_name": {
           "count": 1,
           "flagged": 0,
           "recall": 0.0
         },
-        "string_literal": {
+        "key_name": {
           "count": 1,
           "flagged": 1,
           "recall": 1.0
+        },
+        "string_literal": {
+          "count": 1,
+          "flagged": 0,
+          "recall": 0.0
         },
         "noisy_visible": {
           "count": 1,
@@ -783,13 +819,13 @@
         },
         "html_hidden": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "image_alt": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "nested_value": {
           "count": 1,
@@ -850,13 +886,13 @@
         },
         "string_literal": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "noisy_visible": {
           "count": 1,
-          "flagged": 1,
-          "recall": 1.0
+          "flagged": 0,
+          "recall": 0.0
         },
         "faint_text": {
           "count": 1,
@@ -877,50 +913,152 @@
       "MULTI_STEP_JAILBREAK": {
         "multi_turn_split": {
           "count": 16,
-          "flagged": 9,
-          "recall": 0.5625
+          "flagged": 12,
+          "recall": 0.75
         }
       }
     },
     "sanitization": {
-      "total_sanitized": 51,
+      "total_sanitized": 62,
       "residual_count": 0,
       "residual_attack_rate": 0.0,
-      "mean_retention": 0.4505
+      "mean_retention": 0.7537
     },
     "latency": {
-      "p50_total_ms": 30.0,
-      "p95_total_ms": 63.73,
+      "p50_total_ms": 10.95,
+      "p95_total_ms": 20.34,
       "layers": {
         "l1_ingestion_ms": {
-          "p50_ms": 0.54,
-          "p95_ms": 3.79
+          "p50_ms": 0.42,
+          "p95_ms": 2.71
         },
         "l2_normalize_ms": {
-          "p50_ms": 1.83,
-          "p95_ms": 4.96
+          "p50_ms": 1.4,
+          "p95_ms": 3.38
         },
         "l3_detection_ms": {
-          "p50_ms": 26.38,
-          "p95_ms": 58.53
+          "p50_ms": 8.84,
+          "p95_ms": 16.0
+        },
+        "l3a_rules_ms": {
+          "p50_ms": 8.84,
+          "p95_ms": 16.0
+        },
+        "l3b_classifier_ms": {
+          "p50_ms": 0.0,
+          "p95_ms": 0.0
+        },
+        "l3c_judge_ms": {
+          "p50_ms": 0.15,
+          "p95_ms": 0.48
         },
         "l4_fusion_policy_ms": {
-          "p50_ms": 0.19,
-          "p95_ms": 0.39
+          "p50_ms": 0.13,
+          "p95_ms": 0.29
         },
         "l5_neutralize_ms": {
-          "p50_ms": 0.0,
-          "p95_ms": 0.08
+          "p50_ms": 0.01,
+          "p95_ms": 0.04
         },
         "total_ms": {
-          "p50_ms": 30.0,
-          "p95_ms": 63.73
+          "p50_ms": 10.95,
+          "p95_ms": 20.34
         },
         "total_pipeline_ms": {
-          "p50_ms": 30.0,
-          "p95_ms": 63.73
+          "p50_ms": 10.95,
+          "p95_ms": 20.34
         }
       }
+    },
+    "providers": {
+      "groq_2": 10,
+      "rules_only": 186
+    }
+  },
+  "claims": {
+    "F3": {
+      "tier": "F3",
+      "status": "FAIL",
+      "pass": false,
+      "measured_detected": 1,
+      "threshold_detected": 7,
+      "total_categories": 9,
+      "description": "At least 7 of 9 attack categories detected with rigorous category-level recall",
+      "reason": "Aligned with \u00a79.5 and hackathon F3 tier requirements. Requires demonstrated coverage across >= 7 attack types with n >= 15, flagged recall >= 80%, and category-correct classification recall >= 70%.",
+      "detected_categories": 1,
+      "required_categories": 7
+    },
+    "D2": {
+      "tier": "D2",
+      "status": "FAIL",
+      "pass": false,
+      "measured_recall": 0.625,
+      "threshold_recall": 0.9,
+      "measured_fpr": 0.0,
+      "threshold_fpr": 0.05,
+      "measured_residual": 0.0,
+      "threshold_residual": 0.05,
+      "criteria": {
+        "recall_ge_90": false,
+        "fpr_le_05": true,
+        "residual_le_05": true,
+        "latency_reported": true
+      },
+      "description": "Deep defense reliability on text and structured input with low FPR and residual risk",
+      "reason": "Aligned with \u00a79.5 and hackathon D2 tier requirements. Requires high overall flagged recall (>= 90%), strict benign false positive rate (<= 5%), sanitization residual attack leakage (<= 5%), and non-zero latency reporting."
+    },
+    "D3": {
+      "tier": "D3",
+      "status": "NOT_CLAIMED",
+      "pass": false,
+      "claimed": false,
+      "measured_sources": "0/11",
+      "threshold_sources": "11/11",
+      "description": "Universal reliability across all 11 input sources including multimodal and OCR",
+      "reason": "Not claimed in this release (\u00a79.5). Evaluation on all 11 sources with n >= 20 per source requires expanded multimodal fixtures (audio/image) beyond the current benchmark scope. Explicitly reported as NOT CLAIMED / NOT RUN."
+    }
+  },
+  "ablation": {
+    "split": "test",
+    "total_items": 196,
+    "modes": {
+      "rules_only": {
+        "total_items": 196,
+        "total_attacks": 144,
+        "total_benign": 52,
+        "tp": 87,
+        "fn": 57,
+        "fp": 0,
+        "tn": 52,
+        "precision": 1.0,
+        "recall": 0.6042,
+        "f1": 0.7533,
+        "fpr": 0.0,
+        "accuracy": 0.7092
+      },
+      "full_cascade": {
+        "total_items": 196,
+        "total_attacks": 144,
+        "total_benign": 52,
+        "tp": 90,
+        "fn": 54,
+        "fp": 0,
+        "tn": 52,
+        "precision": 1.0,
+        "recall": 0.625,
+        "f1": 0.7692,
+        "fpr": 0.0,
+        "accuracy": 0.7245
+      }
+    },
+    "grey_zone": {
+      "items_reaching_judge": 9,
+      "recall_without_judge": 0.6042,
+      "f1_without_judge": 0.7533,
+      "recall_with_judge": 0.625,
+      "f1_with_judge": 0.7692,
+      "recall_lift": 0.0208,
+      "f1_lift": 0.0159
     }
   }
 }

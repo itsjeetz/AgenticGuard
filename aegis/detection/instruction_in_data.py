@@ -3,7 +3,7 @@
 import re
 from typing import TYPE_CHECKING
 from aegis.detection.base import DetectionContext
-from aegis.models import AttackType, Finding, Segment, Trust
+from aegis.models import AttackType, Finding, InputSource, Segment, Trust
 from aegis.normalize.deobfuscate import Variant
 from aegis.policy.config import get_policy
 
@@ -22,6 +22,11 @@ AI_ADDRESSEE_CUES = re.compile(
 
 EXFIL_TOOL_OBJECTS = re.compile(
     r"(?:https?://[^\s\"']+\?[^\s\"']+|[a-zA-Z0-9_.+-]+@(?!company\.local)[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+|\b(?:api[_\s-]?keys?|passwords?|credentials?|tokens?|canary|confidential|secret|database|system\s+prompt|drop\s+table)\b)",
+    re.IGNORECASE,
+)
+
+EXFIL_DESTINATION_CUES = re.compile(
+    r"(?:https?://[^\s\"']+|[a-zA-Z0-9_.+-]+@(?!company\.local)[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+|\b(?:webhook|exfil(?:trate)?|endpoint|pastebin|ngrok)\b)",
     re.IGNORECASE,
 )
 
@@ -72,6 +77,21 @@ class InstructionInDataDetector:
                 # Core constraint: requires an AI cue, an exfiltration object, OR the segment being hidden
                 if not (ai_match or exfil_match or is_hidden):
                     continue
+
+                # In visible source code, developer comments frequently contain imperative verbs
+                # with database/system keywords (e.g., "# Execute database query to fetch users").
+                # To distinguish injection attacks from legitimate code instructions, visible
+                # source code requires either a conversational AI cue or an external exfiltration destination.
+                is_source_code = (
+                    ctx.source == InputSource.SOURCE_CODE
+                    or segment.origin == "source_code"
+                    or (segment.location and "line" in str(segment.location))
+                    or segment.id.startswith("seg-code")
+                )
+                if is_source_code and not is_hidden:
+                    has_exfil_dest = bool(EXFIL_DESTINATION_CUES.search(clause))
+                    if not (ai_match or has_exfil_dest):
+                        continue
 
                 # Calculate score
                 score = base_hidden if is_hidden else base_visible

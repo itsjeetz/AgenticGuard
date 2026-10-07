@@ -11,7 +11,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1791402403">
+  <link rel="stylesheet" href="style.css?v=1791410370">
   <script>
     (function () {
       var saved = localStorage.getItem("agenticguard_theme") || "light";
@@ -415,6 +415,12 @@
           <div>
             <h2>Benchmark Evaluation & Claims Verification (§9)</h2>
             <p>Claims generated strictly from empirical measurements on the frozen benchmark (§0 Rule 4).</p>
+            <div class="eval-meta-bar" id="evalMetaBar">
+              <span class="meta-item"><span class="meta-label">Generated:</span> <strong id="evalMetaTime">-</strong></span>
+              <span class="meta-item"><span class="meta-label">Build:</span> <code id="evalMetaBuild">-</code></span>
+              <span class="meta-item"><span class="meta-label">Provider:</span> <strong id="evalMetaProvider">-</strong></span>
+              <span class="meta-item"><span class="meta-label">Evaluated:</span> <strong id="evalMetaSamples">-</strong></span>
+            </div>
           </div>
           <div class="eval-btn-group">
             <button class="btn-secondary" id="btnViewReportMarkdown" title="Read raw pre-generated markdown report">
@@ -438,6 +444,15 @@
           </div>
         </div>
 
+        <!-- Timeout and Error Banner -->
+        <div class="eval-error-panel hidden" id="panelEvalError">
+          <div class="eval-error-content">
+            <span class="error-icon">⚠️</span>
+            <span id="evalErrorMessage">Evaluation report request timed out or failed to load.</span>
+            <button class="btn-secondary small" id="btnRetryEval">Retry</button>
+          </div>
+        </div>
+
         <!-- Collapsible Raw Markdown Viewer -->
         <div class="eval-markdown-panel hidden" id="panelReportMarkdown">
           <div class="eval-markdown-header">
@@ -449,26 +464,36 @@
 
         <!-- Claims Verification Checklist Cards -->
         <div class="claims-cards-grid">
+          <!-- Card 1: F3 Claim -->
           <div class="claim-card" id="cardClaimF3">
             <div class="card-badge" id="badgeClaimF3">CHECKING</div>
             <h3>F3 Claim: All 9 Attack Types</h3>
-            <p id="descClaimF3">Requires &ge; 7 categories detected (n &ge; 15, flagged-recall &ge; 0.80, correct-recall
-              &ge; 0.70).</p>
-            <div class="claim-stat" id="statClaimF3">-</div>
+            <p id="descClaimF3">Requires &ge; 7 categories detected (n &ge; 15, flagged-recall &ge; 0.80, correct-recall &ge; 0.70).</p>
+            <div class="claim-stat" id="statClaimF3">Measured: - | Threshold: &ge; 7 detected</div>
           </div>
+
+          <!-- Card 2: D2 Claim -->
           <div class="claim-card" id="cardClaimD2">
             <div class="card-badge" id="badgeClaimD2">CHECKING</div>
             <h3>D2 Claim: Deep Defense on Text & Structured Input</h3>
-            <p id="descClaimD2">Requires overall flagged-recall &ge; 0.90, FPR &le; 0.05, and reported ablation lift.
-            </p>
-            <div class="claim-stat" id="statClaimD2">-</div>
+            <p id="descClaimD2">Requires overall flagged-recall &ge; 90%, FPR &le; 5%, and residual attack rate &le; 5%.</p>
+            <div class="claim-stat" id="statClaimD2">Measured: - | Threshold: &ge; 90% Recall, &le; 5% FPR</div>
           </div>
-          <div class="claim-card" id="cardClaimD3">
-            <div class="card-badge" id="badgeClaimD3">CHECKING</div>
-            <h3>D3 Claim: Universal Reliability Across 11 Sources</h3>
-            <p id="descClaimD3">Requires &ge; 0.85 recall and &le; 0.05 FPR on all 11 sources including OCR.</p>
-            <div class="claim-stat" id="statClaimD3">-</div>
+
+          <!-- Card 3: D3 Claim (Not Claimed) -->
+          <div class="claim-card claim-card-disabled" id="cardClaimD3">
+            <div class="card-badge grey" id="badgeClaimD3">NOT CLAIMED</div>
+            <h3>D3: Not Claimed</h3>
+            <p id="descClaimD3">Requires &ge; 85% recall and &le; 5% FPR across all 11 sources including OCR. Not claimed in current release.</p>
+            <div class="claim-stat muted" id="statClaimD3">Status: Not claimed (Scope: text + structured data)</div>
           </div>
+        </div>
+
+        <!-- Plain-Language Legend Banner -->
+        <div class="eval-legend-bar">
+          <span class="legend-item"><span class="legend-bullet blue"></span><strong>Flagged Recall:</strong> % of attacks blocked or sanitized (action &ne; ALLOW).</span>
+          <span class="legend-item"><span class="legend-bullet green"></span><strong>Correct Recall:</strong> % of attacks both flagged AND accurately classified into the vector.</span>
+          <span class="legend-item"><span class="legend-bullet red"></span><strong>FPR:</strong> % of benign inputs mistakenly flagged (target &le; 5.0%, lower is better).</span>
         </div>
 
         <!-- Tables Row -->
@@ -513,26 +538,55 @@
           </div>
         </div>
 
+        <!-- Live Demo Checks Block -->
+        <div class="live-checks-section">
+          <div class="live-checks-header">
+            <div>
+              <h3>Live Demo Verification Checks</h3>
+              <p>Six benchmark files (<code>demo_data/custom_scenarios/ex1-ex3</code> attack and benign) evaluated through the real pipeline.</p>
+            </div>
+            <button class="btn-secondary small" id="btnRunLiveChecks">Run Live Checks</button>
+          </div>
+          <div class="soc-table-wrapper">
+            <table class="soc-table" id="tableLiveChecks">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Format</th>
+                  <th>Expected</th>
+                  <th>Verdict</th>
+                  <th>Risk</th>
+                  <th>Categories Detected</th>
+                  <th>Check Status</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyLiveChecks">
+                <tr><td colspan="7" class="loading">Loading live demo checks...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Ablation & Heatmap Section -->
         <div class="ablation-section">
           <h3>Cascade Ablation Study (Measured AI Lift)</h3>
           <div class="ablation-cards-row">
             <div class="ablation-card">
               <h4>L3a Rules Only</h4>
-              <div class="big-metric" id="ablationRulesRecall">54.95%</div>
-              <div class="sub">Baseline Recall (F1: 0.7072)</div>
+              <div class="big-metric" id="ablationRulesRecall">-</div>
+              <div class="sub" id="ablationRulesSub">Baseline Recall & F1</div>
             </div>
             <div class="ablation-arrow">&plus;</div>
             <div class="ablation-card highlight">
-              <h4>L3b + ML Classifier</h4>
-              <div class="big-metric" id="ablationClfRecall">80.63%</div>
-              <div class="sub">Recall Lift: <strong>+25.68%</strong> (F1: 0.8504)</div>
-            </div>
-            <div class="ablation-arrow">&plus;</div>
-            <div class="ablation-card">
               <h4>L3c + Hardened Judge</h4>
-              <div class="big-metric" id="ablationJudgeRecall">Grey-Zone</div>
-              <div class="sub">High-precision arbitration on [0.35, 0.75]</div>
+              <div class="big-metric" id="ablationJudgeRecall">-</div>
+              <div class="sub" id="ablationJudgeSub">Full Cascade Recall</div>
+            </div>
+            <div class="ablation-arrow">&equals;</div>
+            <div class="ablation-card">
+              <h4>Grey-Zone Arbitration</h4>
+              <div class="big-metric" id="ablationGreyZoneItems">-</div>
+              <div class="sub" id="ablationGreyZoneSub">Items in [0.35, 0.75] evaluated by judge</div>
             </div>
           </div>
         </div>
@@ -758,7 +812,7 @@
       <div class="soc-footer-content">
         <span class="footer-brand">AgenticGuard &bull; SOC Dashboard</span>
         <span class="footer-sep">•</span>
-        <span class="build-version-tag" id="footerBuildLabel">BUILD: <span id="buildVersionValue">v0.1.0-dev.407277</span></span>
+        <span class="build-version-tag" id="footerBuildLabel">BUILD: <span id="buildVersionValue">v0.1.0-dev.410689</span></span>
         <span class="footer-sep">•</span>
         <span class="llm-judge-tag" id="footerLlmJudge">LLM judge: gemini_1</span>
         <span class="footer-sep">•</span>
@@ -770,7 +824,7 @@
     <div class="soc-toast" id="socToast"></div>
   </div>
 
-  <script src="app.js?v=1791407277"></script>
+  <script src="app.js?v=1791410689"></script>
 </body>
 
 </html>

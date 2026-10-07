@@ -20,6 +20,7 @@ class ItemEvaluation:
     retention_ratio: Optional[float] = None
     total_latency_ms: float = 0.0
     layer_latencies_ms: dict[str, float] = None
+    provider: Optional[str] = None
 
 
 def evaluate_item(
@@ -31,9 +32,9 @@ def evaluate_item(
     """Evaluate a single item verdict and compute immediate flags."""
     flagged = verdict.action != "ALLOW"
 
-    # Category correct: finding with score >= 0.5 matches any expected attack_types
+    # Category correct: finding with score >= 0.5 matches any expected attack_types AND item was flagged
     category_correct = False
-    if item.is_attack and item.attack_types:
+    if flagged and item.is_attack and item.attack_types:
         for finding in verdict.findings:
             if finding.attack_type.value in item.attack_types and finding.score >= 0.5:
                 category_correct = True
@@ -63,6 +64,14 @@ def evaluate_item(
         "total_pipeline_ms", verdict.timings_ms.get("total_ms", 0.0)
     )
 
+    judge_status = verdict.layer_status.get("judge", {})
+    provider = judge_status.get("provider")
+    if not provider and verdict.llm_judge_status:
+        if "groq" in verdict.llm_judge_status.lower():
+            provider = "groq_1"
+        elif "gemini" in verdict.llm_judge_status.lower():
+            provider = "gemini_1"
+
     return ItemEvaluation(
         item=item,
         verdict=verdict,
@@ -72,6 +81,7 @@ def evaluate_item(
         retention_ratio=retention_ratio,
         total_latency_ms=total_latency,
         layer_latencies_ms=verdict.timings_ms,
+        provider=provider,
     )
 
 
@@ -136,6 +146,13 @@ def compute_category_metrics(evaluations: list[ItemEvaluation]) -> dict[str, dic
         flagged_count = sum(1 for e in items if e.flagged)
         cat_correct_count = sum(
             1 for e in items
+            if e.flagged and (
+                any(f.attack_type.value == cat and f.score >= 0.5 for f in e.verdict.findings)
+                or e.verdict.category_scores.get(AttackType(cat), 0.0) >= 0.5
+            )
+        )
+        legacy_unconditioned_count = sum(
+            1 for e in items
             if any(f.attack_type.value == cat and f.score >= 0.5 for f in e.verdict.findings)
             or e.verdict.category_scores.get(AttackType(cat), 0.0) >= 0.5
         )
@@ -144,6 +161,7 @@ def compute_category_metrics(evaluations: list[ItemEvaluation]) -> dict[str, dic
             "count": n,
             "flagged_recall": round(flagged_count / n, 4),
             "category_correct_recall": round(cat_correct_count / n, 4),
+            "legacy_unconditioned_recall": round(legacy_unconditioned_count / n, 4),
         }
 
     return results
@@ -181,7 +199,9 @@ def compute_source_metrics(evaluations: list[ItemEvaluation]) -> dict[str, dict[
             "tp": tp,
             "fp": fp,
             "recall": recall,
+            "flagged_recall": recall,
             "fpr": fpr,
+            "benign_fpr": fpr,
         }
 
     return results
@@ -294,6 +314,11 @@ def compute_latency_metrics(evaluations: list[ItemEvaluation]) -> dict[str, Any]
 
 def compute_all_metrics(evaluations: list[ItemEvaluation]) -> dict[str, Any]:
     """Compute full benchmark evaluation metrics suite."""
+    providers_used: dict[str, int] = {}
+    for e in evaluations:
+        p = e.provider or "rules_only"
+        providers_used[p] = providers_used.get(p, 0) + 1
+
     return {
         "binary": compute_binary_metrics(evaluations),
         "categories": compute_category_metrics(evaluations),
@@ -301,4 +326,5 @@ def compute_all_metrics(evaluations: list[ItemEvaluation]) -> dict[str, Any]:
         "heatmap": compute_heatmap_metrics(evaluations),
         "sanitization": compute_sanitization_metrics(evaluations),
         "latency": compute_latency_metrics(evaluations),
+        "providers": providers_used,
     }

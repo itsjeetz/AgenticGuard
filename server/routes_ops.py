@@ -365,6 +365,49 @@ def get_eval_report_markdown() -> dict[str, str]:
         raise HTTPException(status_code=500, detail=f"Error reading report: {exc}")
 
 
+@router.get("/eval/live-checks")
+def get_live_demo_checks() -> dict[str, Any]:
+    """Evaluate the 6 demo files (demo_data/custom_scenarios/ex1-ex3) live."""
+    from aegis.pipeline import FirewallPipeline
+    from aegis.models import InputSource
+    from eval.run_eval import load_item_content
+
+    pipeline = FirewallPipeline()
+    files = [
+        ("ex1_attack_ticket.txt", "Support Ticket", "Attack", InputSource.USER_MESSAGE),
+        ("ex1_benign_ticket.txt", "Support Ticket", "Benign", InputSource.USER_MESSAGE),
+        ("ex2_attack_api.json", "CRM API Payload", "Attack", InputSource.API_RESPONSE),
+        ("ex2_benign_api.json", "CRM API Payload", "Benign", InputSource.API_RESPONSE),
+        ("ex3_attack_email.eml", "Partner Email", "Attack", InputSource.EMAIL),
+        ("ex3_benign_email.eml", "Partner Email", "Benign", InputSource.EMAIL),
+    ]
+
+    results = []
+    for fname, ftype, expected, src in files:
+        fpath = Path("demo_data/custom_scenarios") / fname
+        if not fpath.exists():
+            continue
+        content, _ = load_item_content(str(fpath))
+        verdict = pipeline.process(content, source=src, filename=fname, neutralize_content=True)
+        detected_names = [c.value if hasattr(c, "value") else str(c) for c in verdict.detected]
+        results.append({
+            "file": fname,
+            "format": ftype,
+            "expected": expected,
+            "verdict": verdict.action,
+            "risk": round(verdict.risk, 2),
+            "categories": detected_names,
+            "passed": (verdict.action != "ALLOW") if expected == "Attack" else (verdict.action == "ALLOW"),
+        })
+    passed_cnt = sum(1 for r in results if r["passed"])
+    return {
+        "total": len(results),
+        "passed": passed_cnt,
+        "failed": len(results) - passed_cnt,
+        "checks": results,
+    }
+
+
 @router.post("/eval/run")
 def trigger_eval_run() -> dict[str, Any]:
     """Trigger a new live evaluation run."""
