@@ -11,7 +11,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1791400004">
+  <link rel="stylesheet" href="style.css?v=1791402403">
   <script>
     (function () {
       var saved = localStorage.getItem("agenticguard_theme") || "light";
@@ -299,18 +299,19 @@
           <div class="sandbox-controls">
             <label for="selectScenario">Select Scenario:</label>
             <select id="selectScenario" class="soc-select">
-              <option value="S1">S1: Hidden Exfil in PDF (Canary Leakage)</option>
-              <option value="S2">S2: Role Change DAN in HTML Comments</option>
-              <option value="S3">S3: Destructive SQL Injection in Docx</option>
-              <option value="S4">S4: Bash Command Injection via Curl</option>
-              <option value="S5">S5: Credential Extraction in Email Header</option>
-              <option value="S6">S6: Unauthorized Funds Transfer in API JSON</option>
-              <option value="S7">S7: Markdown Image Media Exfil</option>
-              <option value="S8">S8: Persistent Memory Context Poisoning</option>
-              <option value="S9">S9: Multi-Turn Staged Jailbreak</option>
-              <option value="B1">B1 (Benign): Sustainability Report Summary</option>
-              <option value="B2 (Benign)">B2 (Benign): Corporate Travel Policy Review</option>
-              <option value="B3 (Benign)">B3 (Benign): Financial Invoice Reconciliation</option>
+              <option value="custom" selected>Custom content</option>
+              <option value="S1">S1: Poisoned Email Forwarding Confidential Files</option>
+              <option value="S2">S2: Hidden HTML Div Exfiltrating API Key</option>
+              <option value="S3">S3: PDF White Text Database Destruction</option>
+              <option value="S4">S4: DOCX Hidden Comment Credential Theft</option>
+              <option value="S5">S5: Source Code Comment Shell Execution (RCE)</option>
+              <option value="S6">S6: API JSON Metadata Canary Leakage</option>
+              <option value="S7">S7: Image Faint Text Unauthorized Funds Transfer</option>
+              <option value="S8">S8: Multi-Turn Chat Fragmented Jailbreak</option>
+              <option value="S9">S9: Markdown Encoded Malicious Instruction</option>
+              <option value="B1">B1 (Benign): Team Sync Agenda Email Summary</option>
+              <option value="B2">B2 (Benign): Sustainability Report Document Summary</option>
+              <option value="B3">B3 (Benign): AI Prompt Injection Educational Article</option>
             </select>
             <button class="btn-primary" id="btnRunSandbox">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -318,6 +319,43 @@
               </svg>
               <span>Run Side-by-Side Comparison</span>
             </button>
+          </div>
+        </div>
+
+        <!-- Custom Content Input Panel (Tab 2) -->
+        <div class="custom-content-panel" id="customContentControls" style="background-color: var(--bg-card); padding: 18px 20px; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <strong style="font-size: 13px; color: var(--text-bright);">Custom Untrusted Content (Sandbox Input)</strong>
+            <span style="font-size: 11.5px; color: var(--text-muted);">Paste raw text or drop a file to test victim agent vulnerability</span>
+          </div>
+          <textarea id="customTextarea" class="soc-textarea" rows="4" placeholder="Enter custom untrusted content or payload here, or drop a file below..."></textarea>
+
+          <div class="dropzone" id="customDropzone" style="margin-top: 10px; padding: 12px;">
+            <input type="file" id="customFileInput" class="file-hidden-input" accept=".txt,.json,.html,.htm,.eml,.pdf,.docx,image/*">
+            <div class="dropzone-label">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <span>Drop TXT, JSON, HTML, EML, PDF, or DOCX here, or <u>Browse</u></span>
+              <span class="file-name-display" id="customFileNameDisplay"></span>
+            </div>
+          </div>
+
+          <div class="custom-meta-row" style="display: flex; gap: 16px; margin-top: 12px; align-items: flex-end;">
+            <div style="flex: 1;">
+              <label for="customUserTask" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px;">User Task (Benign System Directive):</label>
+              <input type="text" id="customUserTask" class="soc-input" style="width: 100%;" value="Summarize this content for me.">
+            </div>
+            <div style="width: 130px;">
+              <label for="selectRuns" style="font-size: 12px; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px;">Runs:</label>
+              <select id="selectRuns" class="soc-select" style="width: 100%;">
+                <option value="1">1 run</option>
+                <option value="3" selected>3 runs</option>
+                <option value="5">5 runs</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -720,7 +758,7 @@
       <div class="soc-footer-content">
         <span class="footer-brand">AgenticGuard &bull; SOC Dashboard</span>
         <span class="footer-sep">•</span>
-        <span class="build-version-tag" id="footerBuildLabel">BUILD: <span id="buildVersionValue">v0.1.0-dev.399965</span></span>
+        <span class="build-version-tag" id="footerBuildLabel">BUILD: <span id="buildVersionValue">v0.1.0-dev.407277</span></span>
         <span class="footer-sep">•</span>
         <span class="llm-judge-tag" id="footerLlmJudge">LLM judge: gemini_1</span>
         <span class="footer-sep">•</span>
@@ -732,7 +770,7 @@
     <div class="soc-toast" id="socToast"></div>
   </div>
 
-  <script src="app.js?v=1791399965"></script>
+  <script src="app.js?v=1791407277"></script>
 </body>
 
 </html>

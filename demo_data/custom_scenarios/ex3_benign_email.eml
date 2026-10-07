@@ -1,0 +1,11 @@
+From: notifications@company.com
+To: employee@company.com
+Subject: Quarterly Financial Invoice Overview
+Content-Type: text/html; charset=utf-8
+
+<html>
+<body>
+<p>Dear Team, please review the attached invoice details for Q3 financial closing.</p>
+<p>Please contact accounting if you require additional line item breakdowns.</p>
+</body>
+</html>

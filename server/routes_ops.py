@@ -3,9 +3,11 @@
 import json
 from pathlib import Path
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
+from aegis.models import InputSource
 from aegis.guard.egress import get_egress_guard
 from aegis.guard.memory import get_memory_guard
 from aegis.guard.tool_guard import GuardContext, get_tool_guard
@@ -18,7 +20,7 @@ from aegis.review_queue import (
     get_review_queue,
     reject_feedback,
 )
-from agent.victim import run_scenario
+from agent.victim import run_scenario, run_custom_comparison
 from server.demo_mode import is_demo_mode
 
 router = APIRouter(prefix="/api", tags=["ops"])
@@ -231,6 +233,111 @@ def run_victim_agent_scenario(payload: AgentRunPayload) -> dict[str, Any]:
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Scenario execution failed: {exc}")
+
+
+class CustomAgentComparePayload(BaseModel):
+    content: Optional[str] = None
+    source_type: Optional[str] = None
+    user_task: str = "Summarize this content for me."
+    runs: int = 1
+
+
+@router.post("/agent/compare/custom")
+async def compare_victim_agent_custom(request: Request) -> dict[str, Any]:
+    """Execute side-by-side comparison on user-supplied custom content (§7).
+    
+    Supports both JSON and Multipart (with optional file upload).
+    Enforces rate limits, quotas, content size, and runs caps.
+    """
+    content_type = request.headers.get("content-type", "").lower()
+    content_data: bytes | str = ""
+    source_str: Optional[str] = None
+    user_task: str = "Summarize this content for me."
+    runs: int = 1
+    filename: Optional[str] = None
+
+    try:
+        if "application/json" in content_type:
+            body = await request.json()
+            payload = CustomAgentComparePayload.model_validate(body)
+            content_data = payload.content or ""
+            source_str = payload.source_type
+            user_task = payload.user_task or "Summarize this content for me."
+            runs = payload.runs
+        elif "multipart/form-data" in content_type:
+            form = await request.form()
+            file = form.get("file")
+            content_field = form.get("content")
+            source_str = form.get("source_type") or form.get("source")
+            user_task = str(form.get("user_task") or "Summarize this content for me.")
+            runs_val = form.get("runs")
+            try:
+                runs = int(runs_val) if runs_val else 1
+            except ValueError:
+                runs = 1
+
+            if file is not None and hasattr(file, "read"):
+                content_data = await file.read()
+                filename = getattr(file, "filename", None)
+            elif content_field:
+                content_data = str(content_field)
+            else:
+                raise HTTPException(status_code=400, detail="No content or file provided for comparison.")
+        else:
+            try:
+                body = await request.json()
+                payload = CustomAgentComparePayload.model_validate(body)
+                content_data = payload.content or ""
+                source_str = payload.source_type
+                user_task = payload.user_task or "Summarize this content for me."
+                runs = payload.runs
+            except Exception:
+                raise HTTPException(status_code=400, detail="Must provide either JSON content or multipart form data.")
+
+        if not content_data:
+            raise HTTPException(status_code=400, detail="Content cannot be empty.")
+
+        if len(content_data) > 200_000:
+            raise HTTPException(
+                status_code=400,
+                detail="Content exceeds maximum allowed size (200,000 characters / bytes).",
+            )
+
+        runs = min(max(int(runs), 1), 5)
+
+        if is_demo_mode():
+            from server.demo_mode import get_demo_manager
+            mgr = get_demo_manager()
+            if not mgr.can_call_llm():
+                gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+                anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+                if gemini_key or anthropic_key:
+                    stats = mgr.get_llm_stats()
+                    raise HTTPException(
+                        status_code=429,
+                        detail=f"Daily LLM quota exceeded ({stats['used']}/{stats['limit']} calls used). Requests are limited in demo mode.",
+                    )
+
+        src = None
+        if source_str:
+            try:
+                src = InputSource(source_str)
+            except Exception:
+                src = None
+
+        result = await run_in_threadpool(
+            run_custom_comparison,
+            content=content_data,
+            source_type=src,
+            user_task=user_task,
+            runs=runs,
+            filename=filename,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Custom comparison failed: {exc}")
 
 
 @router.get("/eval/latest")

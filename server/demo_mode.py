@@ -22,6 +22,7 @@ DEFAULT_MAX_DAILY_LLM_CALLS = 200
 # Strict endpoints (e.g. scenarios, evaluations, and anything that invokes agent or LLM directly)
 STRICT_PATHS = {
     "/api/agent/run",
+    "/api/agent/compare/custom",
     "/api/eval/run",
     "/api/redteam/run",
 }
