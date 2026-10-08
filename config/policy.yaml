@@ -1,7 +1,7 @@
 version: '2.0'
 thresholds:
-  allow_below: 0.25
-  block_at: 0.85
+  allow_below: 0.24
+  block_at: 0.83
   judge_low: 0.35
   judge_high: 0.75
   judge_can_downgrade_below: 0.6
@@ -17,7 +17,7 @@ high_severity_categories:
 - TOOL_ABUSE
 high_severity_threshold: 0.6
 source_multipliers:
-  user_message: 1.0
+  user_message: 1
   web_page: 1.1
   pdf: 1.1
   email: 1.2
@@ -40,9 +40,9 @@ limits:
   max_segment_chars: 100000
 timeouts_seconds:
   rules: 0.5
-  classifier: 1.0
-  judge: 8.0
-  ocr: 10.0
+  classifier: 1
+  judge: 8
+  ocr: 10
 resilience:
   fail_mode: closed
   judge_max_retries: 1

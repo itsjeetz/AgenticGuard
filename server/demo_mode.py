@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 import logging
 import os
+import json
+from pathlib import Path
 import threading
 import time
 from typing import Optional
@@ -17,7 +19,8 @@ logger = logging.getLogger(__name__)
 # Defaults
 DEFAULT_GENERAL_LIMIT_PER_MINUTE = 30
 DEFAULT_STRICT_LIMIT_PER_MINUTE = 5
-DEFAULT_MAX_DAILY_LLM_CALLS = 200
+DEFAULT_MAX_DAILY_LLM_CALLS = 300
+QUOTA_FILE = Path("data/daily_llm_quota.json")
 
 # Strict endpoints (e.g. scenarios, evaluations, and anything that invokes agent or LLM directly)
 STRICT_PATHS = {
@@ -38,27 +41,52 @@ class DemoQuotaManager:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._current_date = self._get_utc_date()
+        self._current_date = self._get_local_date()
         self._daily_llm_calls = 0
+        
+        # Load persisted quota
+        if QUOTA_FILE.exists():
+            try:
+                data = json.loads(QUOTA_FILE.read_text(encoding="utf-8"))
+                if data.get("date") == self._current_date:
+                    self._daily_llm_calls = data.get("calls", 0)
+            except Exception as e:
+                logger.error("Failed to load quota file: %s", e)
 
         # Rate limiter storage: key -> list of timestamps
         # key format: f"{ip}:{rate_tier}"
         self._ip_request_timestamps: dict[str, list[float]] = defaultdict(list)
         self._last_cleanup = time.time()
 
-    def _get_utc_date(self) -> str:
-        return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    def _get_local_date(self) -> str:
+        # Use local time for midnight reset
+        return datetime.now().strftime("%Y-%m-%d")
+
+    def _save_quota(self) -> None:
+        try:
+            QUOTA_FILE.parent.mkdir(parents=True, exist_ok=True)
+            QUOTA_FILE.write_text(json.dumps({
+                "date": self._current_date,
+                "calls": self._daily_llm_calls
+            }), encoding="utf-8")
+        except Exception as e:
+            logger.error("Failed to save quota file: %s", e)
 
     def _check_and_reset_day(self) -> None:
-        today = self._get_utc_date()
+        today = self._get_local_date()
         if today != self._current_date:
             self._current_date = today
             self._daily_llm_calls = 0
-            logger.info("Demo Mode: Daily LLM counter reset for new UTC date: %s", today)
+            self._save_quota()
+            logger.info("Demo Mode: Daily LLM counter reset for new local date: %s", today)
 
     def get_max_daily_llm_calls(self) -> int:
         try:
-            return int(os.environ.get("DEMO_MAX_DAILY_LLM_CALLS", str(DEFAULT_MAX_DAILY_LLM_CALLS)))
+            # Check DAILY_LLM_CALLS_LIMIT, fallback to old DEMO_MAX_DAILY_LLM_CALLS
+            env_val = os.environ.get("DAILY_LLM_CALLS_LIMIT") or os.environ.get("DEMO_MAX_DAILY_LLM_CALLS")
+            if env_val:
+                return int(env_val)
+            return DEFAULT_MAX_DAILY_LLM_CALLS
         except (ValueError, TypeError):
             return DEFAULT_MAX_DAILY_LLM_CALLS
 
@@ -79,6 +107,7 @@ class DemoQuotaManager:
             limit = self.get_max_daily_llm_calls()
             if self._daily_llm_calls < limit:
                 self._daily_llm_calls += 1
+                self._save_quota()
                 logger.info("Recorded LLM call (%d / %d today)", self._daily_llm_calls, limit)
                 return True
             return False
@@ -98,8 +127,9 @@ class DemoQuotaManager:
     def reset_for_tests(self) -> None:
         """Reset internal counters (for testing)."""
         with self._lock:
-            self._current_date = self._get_utc_date()
+            self._current_date = self._get_local_date()
             self._daily_llm_calls = 0
+            self._save_quota()
             self._ip_request_timestamps.clear()
 
     def check_rate_limit(self, client_ip: str, path: str) -> tuple[bool, int]:

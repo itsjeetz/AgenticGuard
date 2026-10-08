@@ -136,7 +136,7 @@ async def capture_footer_screenshot(footer_text, filename):
                 "degraded_mode": "rules only" in footer_text.lower(),
                 "demo_mode": False,
                 "rate_limit_per_minute": 30,
-                "daily_llm_calls_limit": 200,
+                "daily_llm_calls_limit": 300,
                 "daily_llm_calls_used": 12,
                 "daily_llm_calls_remaining": 188,
                 "llm_judge_provider": "groq_2" if "key 2" in footer_text else ("gemini_1" if "Gemini" in footer_text else "fallback:rules_only"),

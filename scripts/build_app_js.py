@@ -198,7 +198,7 @@ async function initDemoBanner() {
       const quotaEl = el("demoLlmQuota");
       if (quotaEl) {
         const used = data.daily_llm_calls_used ?? 0;
-        const limit = data.daily_llm_calls_limit ?? 200;
+        const limit = data.daily_llm_calls_limit ?? 300;
         const rem = data.daily_llm_calls_remaining ?? (limit - used);
         quotaEl.textContent = `Daily LLM Quota: ${rem}/${limit}`;
       }
@@ -825,7 +825,7 @@ function renderVerdict(verdict, originalRawText) {
     if (verdict.daily_llm_calls_remaining !== undefined && verdict.daily_llm_calls_remaining !== null) {
       const quotaEl = el("demoLlmQuota");
       if (quotaEl) {
-        const limit = verdict.daily_llm_calls_limit || 200;
+        const limit = verdict.daily_llm_calls_limit || 300;
         quotaEl.textContent = `Daily LLM Quota: ${verdict.daily_llm_calls_remaining}/${limit}`;
       }
     }

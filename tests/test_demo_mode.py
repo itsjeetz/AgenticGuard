@@ -29,7 +29,7 @@ def reset_demo_state(monkeypatch):
 def test_health_reports_demo_mode(monkeypatch):
     """Verify /api/health accurately reflects DEMO_MODE=1 and quotas."""
     monkeypatch.setenv("DEMO_MODE", "1")
-    monkeypatch.setenv("DEMO_MAX_DAILY_LLM_CALLS", "150")
+    monkeypatch.setenv("DAILY_LLM_CALLS_LIMIT", "150")
 
     client = TestClient(app)
     res = client.get("/api/health")
@@ -175,7 +175,7 @@ def test_store_content_disabled_in_demo_mode(monkeypatch, tmp_path):
 def test_daily_llm_counter_and_fallback(monkeypatch):
     """Verify daily LLM call quota enforcement and graceful fallback."""
     monkeypatch.setenv("DEMO_MODE", "1")
-    monkeypatch.setenv("DEMO_MAX_DAILY_LLM_CALLS", "2")
+    monkeypatch.setenv("DAILY_LLM_CALLS_LIMIT", "2")
 
     mgr = get_demo_manager()
     assert mgr.can_call_llm() is True

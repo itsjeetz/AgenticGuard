@@ -63,6 +63,9 @@ GROQ_MODEL=openai/gpt-oss-20b
 GEMINI_API_KEY=your_primary_gemini_api_key
 GEMINI_API_KEY_2=your_secondary_gemini_api_key
 GEMINI_MODEL=gemini-2.5-flash
+
+# Optional: Limit daily LLM calls (defaults to 300 in code)
+DAILY_LLM_CALLS_LIMIT=300
 ```
 *(If no API keys are provided or all remote providers fail/cool down, AgenticGuard degrades gracefully to offline rules-only mode with amber degraded indicator.)*
 
