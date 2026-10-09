@@ -10,10 +10,10 @@ from eval.metrics import ItemEvaluation, compute_all_metrics
 
 
 def get_git_commit() -> str:
-    """Get current git commit hash."""
+    """Get current git commit hash and dirty status."""
     try:
         res = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
+            ["git", "describe", "--always", "--dirty", "--exclude", "*"],
             capture_output=True,
             text=True,
             check=False,
@@ -76,6 +76,7 @@ def generate_markdown_report(
 - **Evaluation Split:** `{split}`
 - **Firewall Mode:** `{mode}`
 - **Active Providers:** `{provider_str}`
+- **Random Seed:** `42` (default)
 {partial_banner}{hash_section}
 ---
 
@@ -243,6 +244,7 @@ def save_reports(
             "items_evaluated": items_evaluated if items_evaluated is not None else metrics["binary"]["total_items"],
             "total_items": total_items if total_items is not None else metrics["binary"]["total_items"],
             "test_hash_info": test_hash_info,
+            "seed": 42,
         },
         "metrics": metrics,
         "claims": claims or {},

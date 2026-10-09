@@ -64,7 +64,6 @@ SAMPLE_ATTACK_JSON = {
     "CONTEXT_POISONING": 0.20,
     "MULTI_STEP_JAILBREAK": 0.0,
     "ENCODED_INSTRUCTIONS": 0.0,
-    "INDIRECT_PROMPT_INJECTION": 0.0,
     "rationale": "High instruction override and role change detected.",
 }
 
@@ -77,7 +76,6 @@ SAMPLE_CLEAN_JSON = {
     "CONTEXT_POISONING": 0.0,
     "MULTI_STEP_JAILBREAK": 0.0,
     "ENCODED_INSTRUCTIONS": 0.0,
-    "INDIRECT_PROMPT_INJECTION": 0.0,
     "rationale": "Benign content, no malicious patterns found.",
 }
 
@@ -120,11 +118,15 @@ class TestProviderAgnosticJudge:
 
     def test_mock_llm_timeout_failover(self, monkeypatch):
         """Test failover when the first provider times out and second provider succeeds."""
+        for k in list(os.environ.keys()):
+            if "API_KEY" in k or "BASE_URL" in k:
+                monkeypatch.delenv(k, raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-key-1")
         monkeypatch.setenv("GROQ_API_KEY", "groq-key-2")
         monkeypatch.setenv("LLM_PROVIDER_ORDER", "gemini,groq")
 
         judge = ProviderAgnosticJudge()
+        judge.__init__()
 
         groq_resp = {
             "choices": [
@@ -141,6 +143,7 @@ class TestProviderAgnosticJudge:
         def mock_urlopen(req, timeout=10.0):
             nonlocal call_count
             call_count += 1
+            print("URL CALLED:", req.full_url)
             if "generativelanguage" in req.full_url:
                 raise urllib.error.URLError("Connection timed out after 10.0s")
             if "groq.com" in req.full_url:
@@ -157,11 +160,15 @@ class TestProviderAgnosticJudge:
 
     def test_mock_llm_malformed_json_recovery(self, monkeypatch):
         """Test recovery when first provider returns malformed non-JSON."""
+        for k in list(os.environ.keys()):
+            if "API_KEY" in k or "BASE_URL" in k:
+                monkeypatch.delenv(k, raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
         monkeypatch.setenv("MISTRAL_API_KEY", "mistral-key")
         monkeypatch.setenv("LLM_PROVIDER_ORDER", "gemini,mistral")
 
         judge = ProviderAgnosticJudge()
+        judge.__init__()
 
         def mock_urlopen(req, timeout=10.0):
             if "generativelanguage" in req.full_url:
@@ -183,11 +190,15 @@ class TestProviderAgnosticJudge:
 
     def test_mock_llm_all_providers_down(self, monkeypatch):
         """When all providers fail, return fallback:rules_only without raising exceptions."""
+        for k in list(os.environ.keys()):
+            if "API_KEY" in k:
+                monkeypatch.delenv(k, raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
         monkeypatch.setenv("GROQ_API_KEY", "groq-key")
         monkeypatch.setenv("LLM_PROVIDER_ORDER", "gemini,groq")
 
         judge = ProviderAgnosticJudge()
+        judge.__init__()
 
         with patch("urllib.request.urlopen", side_effect=urllib.error.URLError("Network unreachable")):
             scores, provider, status = judge.evaluate_text("Sample attack text")
@@ -198,10 +209,14 @@ class TestProviderAgnosticJudge:
 
     def test_cache_ttl_behavior(self, monkeypatch):
         """Second call with identical text must return from cache without network invocation."""
+        for k in list(os.environ.keys()):
+            if "API_KEY" in k:
+                monkeypatch.delenv(k, raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
         monkeypatch.setenv("LLM_PROVIDER_ORDER", "gemini")
 
         judge = ProviderAgnosticJudge()
+        judge.__init__()
         call_counter = 0
 
         def mock_urlopen(req, timeout=10.0):
@@ -223,12 +238,16 @@ class TestProviderAgnosticJudge:
 
     def test_rate_limiter_failover(self, monkeypatch):
         """Provider exceeding RPM limit is skipped to next provider."""
+        for k in list(os.environ.keys()):
+            if "API_KEY" in k:
+                monkeypatch.delenv(k, raising=False)
         monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
         monkeypatch.setenv("GROQ_API_KEY", "groq-key")
         monkeypatch.setenv("LLM_PROVIDER_ORDER", "gemini,groq")
         monkeypatch.setenv("LLM_RATE_LIMIT_PER_MINUTE", "2")
 
         judge = ProviderAgnosticJudge()
+        judge.__init__()
 
         # Seed rate limit timestamps for gemini / gemini_1
         now = time.time()

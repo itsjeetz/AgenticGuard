@@ -7,6 +7,8 @@ from pathlib import Path
 import re
 import secrets
 import sqlite3
+import sys
+import time
 from typing import Any, Literal, Optional
 
 from aegis.guard.egress import EgressGuard, EgressVerdict
@@ -407,16 +409,26 @@ class VictimAgent:
         except Exception:
             pass
 
+        in_test = bool(os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules)
+        allow_live_llm = bool(os.environ.get("ENABLE_LIVE_LLM") or os.environ.get("LIVE_EVAL"))
         gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
         anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         has_llm_key = bool(gemini_key or anthropic_key)
-        is_offline = (not has_llm_key) or (not can_call)
+        is_offline = (not has_llm_key) or (not can_call) or (in_test and not allow_live_llm)
 
         raw_output = ""
         tool_calls: list[tuple[str, dict[str, Any]]] = []
 
         if not is_offline and gemini_key:
-            raw_output, tool_calls = self._gemini_simulate_intent(prompt_for_agent)
+            try:
+                from aegis.judge_llm import get_llm_judge
+                judge = get_llm_judge()
+                now = time.time()
+                is_cd = now < judge._provider_cooldown_until.get("gemini_1", 0.0) or now < judge._provider_cooldown_until.get("gemini", 0.0)
+                if not is_cd:
+                    raw_output, tool_calls = self._gemini_simulate_intent(prompt_for_agent)
+            except Exception:
+                pass
 
         if not raw_output and not tool_calls:
             raw_output, tool_calls = self._offline_simulate_intent(prompt_for_agent)
@@ -592,6 +604,8 @@ def evaluate_possible_compliance(output_text: str, untrusted_text: str, canary_t
         return True, match.group(0) if match else "Roleplay / DAN persona compliance"
 
     # 4. LLM Judge check (when LLM is configured and within quota)
+    in_test = bool(os.environ.get("PYTEST_CURRENT_TEST") or "pytest" in sys.modules)
+    live_enabled = bool(os.environ.get("ENABLE_LIVE_LLM") == "1")
     gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
     can_call = True
     try:
@@ -600,7 +614,7 @@ def evaluate_possible_compliance(output_text: str, untrusted_text: str, canary_t
     except Exception:
         pass
 
-    if gemini_key and can_call and len(untrusted_text) > 10:
+    if gemini_key and can_call and (not in_test or live_enabled) and len(untrusted_text) > 10:
         try:
             from google import genai
             from google.genai import types

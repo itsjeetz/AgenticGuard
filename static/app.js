@@ -47,7 +47,7 @@ const ATTACK_PRESETS = {
   },
 };
 
-// Fixed Canonical Order of 9 Attack Vectors matching Preset dropdown
+// Fixed Canonical Order of 8 Attack Vectors matching Preset dropdown
 const ORDERED_ATTACK_TYPES = [
   { key: "INSTRUCTION_OVERRIDE", name: "Instruction Override" },
   { key: "ROLE_CHANGE", name: "Role Change" },
@@ -56,8 +56,7 @@ const ORDERED_ATTACK_TYPES = [
   { key: "CREDENTIAL_THEFT", name: "Credential Theft" },
   { key: "CONTEXT_POISONING", name: "Context Poisoning" },
   { key: "MULTI_STEP_JAILBREAK", name: "Multi-Step Jailbreak" },
-  { key: "ENCODED_INSTRUCTIONS", name: "Encoded Instructions" },
-  { key: "INDIRECT_PROMPT_INJECTION", name: "Indirect Prompt Injection" },
+  { key: "ENCODED_INSTRUCTIONS", name: "Encoded Instructions" }
 ];
 
 let currentPolicyData = null;
@@ -220,9 +219,7 @@ async function initDemoBanner() {
     }
 
     // Update LLM Judge footer status tag
-    if (data.footer_label) {
-      updateLlmJudgeFooter(data.footer_label);
-    } else if (data.llm_judge_provider && !data.llm_judge_provider.startsWith("fallback")) {
+    if (data.llm_judge_provider && !data.llm_judge_provider.startsWith("fallback")) {
       updateLlmJudgeFooter(data.llm_judge_provider);
     } else if (data.llm_judge_status) {
       updateLlmJudgeFooter(data.llm_judge_status);
@@ -232,44 +229,22 @@ async function initDemoBanner() {
   }
 }
 
-function updateLlmJudgeFooter(labelOrStatus, reason) {
+function updateLlmJudgeFooter(providerOrStatus, reason) {
   const footerTag = el("footerLlmJudge");
   if (!footerTag) return;
-  if (!labelOrStatus) {
-    footerTag.textContent = "LLM: Rules only (amber degraded)";
-    footerTag.classList.remove("active");
-    footerTag.classList.add("fallback");
+  if (!providerOrStatus) {
+    footerTag.textContent = "LLM judge: fallback (rules_only)";
     return;
   }
-
-  let text = labelOrStatus;
-  if (!text.startsWith("LLM:") && !text.startsWith("LLM judge:")) {
-    if (text.startsWith("ok") || text.startsWith("cached")) {
-      text = `LLM: ${text}`;
-    } else if (text.startsWith("fallback")) {
-      const r = reason ? ` (${reason})` : (text.includes(":") ? ` (${text.split(":")[1]})` : "");
-      text = `LLM: Rules only${r}`;
-    } else {
-      text = `LLM: ${text}`;
-    }
-  }
-
-  footerTag.textContent = text;
-
-  // Toggle active vs fallback style classes
-  const isFallback = text.toLowerCase().includes("rules only") ||
-                     text.toLowerCase().includes("fallback") ||
-                     text.toLowerCase().includes("degraded") ||
-                     text.toLowerCase().includes("offline");
-  if (isFallback) {
-    footerTag.classList.remove("active");
-    footerTag.classList.add("fallback");
+  if (providerOrStatus.startsWith("ok") || providerOrStatus.startsWith("cached")) {
+    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
+  } else if (providerOrStatus.startsWith("fallback")) {
+    const r = reason ? ` (${reason})` : (providerOrStatus.includes(":") ? ` (${providerOrStatus.split(":")[1]})` : "");
+    footerTag.textContent = `LLM judge: fallback${r}`;
   } else {
-    footerTag.classList.remove("fallback");
-    footerTag.classList.add("active");
+    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
   }
 }
-
 
 // ---------------------------------------------------------------------------
 // TAB 1: INSPECTOR & NEUTRALIZER
@@ -402,7 +377,7 @@ function renderStandbyAttackDetection() {
         <span class="attack-row-title">${escapeHtml(item.name)}</span>
         <div class="attack-row-meta">
           <span class="attack-status-tag standby">Not detected</span>
-          <span class="attack-row-pct">0%</span>
+          <span class="attack-row-pct" title="Model confidence for this input, not an accuracy rate.">0% <span class="pct-tooltip-icon" title="Model confidence for this input, not an accuracy rate.">ℹ️</span></span>
         </div>
       </div>
       <div class="attack-bar-bg">
@@ -453,7 +428,6 @@ function renderAttackDetection(verdict) {
 
   list.innerHTML = "";
   const catScores = verdict.category_scores || {};
-  const catDetails = verdict.category_details || {};
   const detectedList = verdict.detected || [];
 
   // Evaluate each of the 9 attack types
@@ -470,7 +444,6 @@ function renderAttackDetection(verdict) {
       percentage,
       isDetected,
       originalIndex,
-      detail: catDetails[item.key] || {},
     };
   });
 
@@ -495,105 +468,53 @@ function renderAttackDetection(verdict) {
 
   evaluated.forEach((item) => {
     const row = document.createElement("div");
-    const detail = item.detail;
-    const hasEvidence = item.isDetected && Boolean((detail.evidence && detail.evidence.trim()) || detail.location || detail.raw_rules_score !== undefined || detail.raw_judge_score !== undefined);
+    row.className = `attack-detection-row ${item.isDetected ? "detected" : "muted"}`;
+    const btnId = `btnToggle_${item.key}`;
+    const drawerId = `drawer_${item.key}`;
 
-    row.className = `attack-detection-row ${item.isDetected ? "detected" : "muted"}${hasEvidence ? " has-evidence" : ""}`;
-
-    const rulesRaw = Number(detail.raw_rules_score ?? 0.0);
-    const judgeRaw = Number(detail.raw_judge_score ?? 0.0);
-    const layers = detail.layers || [];
-    let layerBadgeText = "None";
-    let layerClass = "none";
-    if (layers.includes("rules") && layers.includes("judge")) {
-      layerBadgeText = "Rules + LLM Judge";
-      layerClass = "both";
-    } else if (layers.includes("judge")) {
-      layerBadgeText = "LLM Judge";
-      layerClass = "judge";
-    } else if (layers.includes("rules")) {
-      layerBadgeText = "Rules (L3a)";
-      layerClass = "rules";
-    }
-
-    const slug = item.key.toLowerCase().replace(/[^a-z0-9_-]/g, "-");
-    const drawerId = `drawer-evidence-${slug}`;
-    const toggleBtnId = `btn-evidence-${slug}`;
-
-    const drawerHtml = hasEvidence ? `
-      <div id="${drawerId}" class="attack-evidence-drawer hidden" role="region" aria-labelledby="${toggleBtnId}" hidden>
-        <div class="evidence-meta-row">
-          <div class="evidence-meta-item">
-            <span class="evidence-meta-label">Layer:</span>
-            <span class="evidence-pill ${layerClass}">${escapeHtml(layerBadgeText)}</span>
-          </div>
-          <div class="evidence-meta-item">
-            <span class="evidence-meta-label">Location:</span>
-            <span class="evidence-pill loc-pill">${escapeHtml(detail.location || "visible text")}</span>
-          </div>
-        </div>
-        <div class="evidence-scores-row">
-          <span class="evidence-meta-label">Raw Scores:</span>
-          <div class="evidence-score-chips">
-            <span class="score-chip">Rules: <strong>${Math.round(rulesRaw * 100)}%</strong></span>
-            <span class="score-chip">LLM Judge: <strong>${Math.round(judgeRaw * 100)}%</strong></span>
-            <span class="score-chip fused">Fused: <strong>${item.percentage}%</strong></span>
-          </div>
-        </div>
-        <div class="evidence-snippet-container">
-          <span class="evidence-meta-label">Evidence Snippet:</span>
-          <div class="evidence-snippet-box"><code>${escapeHtml(detail.evidence || "Direct vector pattern match")}</code></div>
-        </div>
-      </div>
-    ` : "";
-
-    const toggleBtnHtml = hasEvidence ? `
-      <button id="${toggleBtnId}" class="btn-evidence-toggle" type="button" aria-expanded="false" aria-controls="${drawerId}" title="Toggle evidence breakdown">
-        <span>Evidence</span>
-        <svg class="chevron-svg" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
-      </button>
-    ` : "";
+    const matching = (verdict.findings || []).filter(f => f.attack_type === item.key);
+    const evQuotes = matching.map(f => f.evidence).filter(Boolean);
+    const evText = evQuotes.length > 0 ? evQuotes.join(" | ") : "Pattern detected by firewall behavioral analysis.";
 
     row.innerHTML = `
       <div class="attack-row-info">
         <span class="attack-row-title">${escapeHtml(item.name)}</span>
         <div class="attack-row-meta">
+          ${item.isDetected ? `
+          <button type="button" class="btn-evidence-toggle" id="${btnId}" aria-controls="${drawerId}" aria-expanded="false">
+            <span>Evidence</span>
+            <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>` : ""}
           <span class="attack-status-tag ${item.isDetected ? "detected" : "clean"}">
             ${item.isDetected ? "Detected" : "Not detected"}
           </span>
-          <span class="attack-row-pct">${item.percentage}%</span>
-          ${toggleBtnHtml}
+          <span class="attack-row-pct" title="Model confidence for this input, not an accuracy rate.">${item.percentage}% <span class="pct-tooltip-icon" title="Model confidence for this input, not an accuracy rate.">ℹ️</span></span>
         </div>
       </div>
       <div class="attack-bar-bg">
         <div class="attack-bar-fill" style="width: ${item.percentage}%"></div>
       </div>
-      ${drawerHtml}
+      ${item.isDetected ? `
+      <div class="attack-evidence-drawer" id="${drawerId}" role="region" aria-labelledby="${btnId}" style="display: none;">
+        <div class="evidence-content">${escapeHtml(evText)}</div>
+      </div>` : ""}
     `;
 
-    if (hasEvidence) {
+    if (item.isDetected) {
       const toggleBtn = row.querySelector(".btn-evidence-toggle");
       const drawer = row.querySelector(".attack-evidence-drawer");
       if (toggleBtn && drawer) {
-        const toggleDrawer = (e) => {
-          if (e) e.stopPropagation();
-          const isExpanded = toggleBtn.getAttribute("aria-expanded") === "true";
-          const nextExpanded = !isExpanded;
-          toggleBtn.setAttribute("aria-expanded", nextExpanded ? "true" : "false");
-          toggleBtn.classList.toggle("expanded", nextExpanded);
-          drawer.classList.toggle("hidden", !nextExpanded);
-          if (nextExpanded) {
-            drawer.removeAttribute("hidden");
-          } else {
-            drawer.setAttribute("hidden", "");
-          }
+        const toggleDrawer = () => {
+          const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
+          toggleBtn.setAttribute("aria-expanded", !isOpen ? "true" : "false");
+          toggleBtn.classList.toggle("expanded", !isOpen);
+          drawer.style.display = !isOpen ? "block" : "none";
         };
-
         toggleBtn.addEventListener("click", toggleDrawer);
         toggleBtn.addEventListener("keydown", (e) => {
-          if (e.key === " " || e.key === "Spacebar") {
+          if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
-            toggleDrawer(e);
+            toggleDrawer();
           }
         });
       }
@@ -763,17 +684,13 @@ async function runInspection() {
       if (source) formData.append("source", source);
       res = await fetch("/api/neutralize", {
         method: "POST",
-        headers: { "Cache-Control": "no-cache" },
         body: formData,
         signal: currentController.signal,
       });
     } else {
       res = await fetch("/api/neutralize", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Cache-Control": "no-cache",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content, source }),
         signal: currentController.signal,
       });
@@ -862,40 +779,12 @@ function renderVerdict(verdict, originalRawText) {
   if (!verdict) return;
 
   // 1. Action Badge
-  // 1. Action Badge & Offline Amber Chip (§Step 6)
   try {
     const actionBadge = el("actionBadge");
-    const degradedChip = el("degradedChip");
-    const isLlmOffline = Boolean(
-      verdict.degraded ||
-      verdict.llm_judge_status?.startsWith("fallback") ||
-      verdict.layer_status?.judge?.status?.startsWith("degraded")
-    );
-
-    const reason = verdict.layer_status?.judge?.error ||
-      verdict.layer_status?.judge?.status ||
-      verdict.llm_judge_status ||
-      "all providers failed";
-
     if (actionBadge) {
       const act = verdict.action || (verdict.error ? "ERROR" : "STANDBY");
-      if (act === "ALLOW" && isLlmOffline) {
-        // Never a plain green ALLOW when LLM is offline (§Step 6)
-        actionBadge.textContent = "ALLOW (DEGRADED)";
-        actionBadge.className = "action-badge badge-degraded";
-      } else {
-        actionBadge.textContent = act;
-        actionBadge.className = `action-badge badge-${act.toLowerCase()}`;
-      }
-    }
-
-    if (degradedChip) {
-      if (isLlmOffline) {
-        degradedChip.textContent = `LLM offline: rules only (${reason})`;
-        degradedChip.style.display = "inline-flex";
-      } else {
-        degradedChip.style.display = "none";
-      }
+      actionBadge.textContent = act;
+      actionBadge.className = `action-badge badge-${act.toLowerCase()}`;
     }
   } catch (e) {
     console.error("Error rendering action badge:", e);
@@ -956,21 +845,16 @@ function renderVerdict(verdict, originalRawText) {
 
   // 7. Dynamic Footer LLM Judge Status (§5)
   try {
-    if (verdict.footer_label) {
-      updateLlmJudgeFooter(verdict.footer_label);
-    } else {
-      const judgeStatus = verdict.llm_judge_status || verdict.layer_status?.judge?.llm_judge_status;
-      const judgeProvider = verdict.layer_status?.judge?.provider;
-      if (judgeProvider && (judgeStatus?.startsWith("ok") || judgeStatus?.startsWith("cached"))) {
-        updateLlmJudgeFooter(judgeStatus);
-      } else if (judgeStatus) {
-        updateLlmJudgeFooter(judgeStatus);
-      }
+    const judgeStatus = verdict.llm_judge_status || verdict.layer_status?.judge?.llm_judge_status;
+    const judgeProvider = verdict.layer_status?.judge?.provider;
+    if (judgeProvider && (judgeStatus?.startsWith("ok") || judgeStatus?.startsWith("cached"))) {
+      updateLlmJudgeFooter(judgeStatus);
+    } else if (judgeStatus) {
+      updateLlmJudgeFooter(judgeStatus);
     }
   } catch (e) {
     console.error("Error updating llm judge footer:", e);
   }
-
 
   // 8. Dynamic Quota Counter update from verdict (§10)
   try {
@@ -1215,7 +1099,7 @@ async function runSandboxScenario() {
   }
 
   // ----------------------------------------------------
-  // Path B: Preset Scenarios S1-S9, B1-B3 (Unchanged)
+  // Path B: Preset Scenarios S1-S9, B1-B3
   // ----------------------------------------------------
   if (unprotStatus) unprotStatus.textContent = "Executing...";
   if (protStatus) protStatus.textContent = "Executing...";
@@ -1375,40 +1259,11 @@ function renderCustomComparisonResults(data, unprotBody, protBody, unprotStatus,
 }
 
 // ---------------------------------------------------------------------------
-// TAB 3: EVALUATION & CLAIMS (§9, §0 Rule 4)
+// TAB 3: EVALUATION & CLAIMS
 // ---------------------------------------------------------------------------
-const CLAIM_THRESHOLDS = {
-  F3: {
-    min_categories: 7,
-    min_count_per_cat: 15,
-    min_flagged_recall: 0.80,
-    min_correct_recall: 0.70,
-    description: "Requires >= 7 categories detected (n >= 15, flagged-recall >= 0.80, correct-recall >= 0.70)."
-  },
-  D2: {
-    min_flagged_recall: 0.90,
-    max_benign_fpr: 0.05,
-    max_residual_attack_rate: 0.05,
-    description: "Requires overall flagged-recall >= 90%, FPR <= 5%, and residual attack rate <= 5%."
-  },
-  D3: {
-    min_flagged_recall: 0.85,
-    max_benign_fpr: 0.05,
-    all_11_sources: true,
-    claimed: false,
-    description: "Requires >= 85% recall and <= 5% FPR across all 11 sources including OCR. Not claimed in current release."
-  }
-};
-
 function initEvalTab() {
   const btnRefresh = el("btnRefreshEval");
-  if (btnRefresh) btnRefresh.addEventListener("click", () => loadEvaluationReport(true));
-
-  const btnRetry = el("btnRetryEval");
-  if (btnRetry) btnRetry.addEventListener("click", () => loadEvaluationReport(true));
-
-  const btnLiveChecks = el("btnRunLiveChecks");
-  if (btnLiveChecks) btnLiveChecks.addEventListener("click", loadLiveDemoChecks);
+  if (btnRefresh) btnRefresh.addEventListener("click", loadEvaluationReport);
 
   const btnMd = el("btnViewReportMarkdown");
   const panelMd = el("panelReportMarkdown");
@@ -1444,110 +1299,57 @@ function initEvalTab() {
   }
 
   loadEvaluationReport();
-  loadLiveDemoChecks();
 }
 
-async function loadEvaluationReport(showToastNotice = false) {
-  const errorPanel = el("panelEvalError");
-  const errorMsg = el("evalErrorMessage");
-
-  // Show loading indicator
-  const tableCat = el("tableEvalCategories");
-  const tableSrc = el("tableEvalSources");
-  if (tableCat && tableCat.querySelector("tbody")) {
-    tableCat.querySelector("tbody").innerHTML = '<tr><td colspan="5" class="loading">Loading evaluation metrics...</td></tr>';
-  }
-  if (tableSrc && tableSrc.querySelector("tbody")) {
-    tableSrc.querySelector("tbody").innerHTML = '<tr><td colspan="4" class="loading">Loading source metrics...</td></tr>';
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 8000);
-
+async function loadEvaluationReport() {
   try {
-    const res = await fetch("/api/eval/latest", { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      throw new Error(`Evaluation report returned HTTP ${res.status} (${res.statusText || 'Report unavailable'})`);
-    }
-
+    const res = await fetch("/api/eval/latest");
+    if (!res.ok) throw new Error("No evaluation report found. Run eval first.");
     const report = await res.json();
-    if (errorPanel) errorPanel.classList.add("hidden");
 
-    // 1. Header Metadata Bar
-    const metaTime = el("evalMetaTime");
-    const metaBuild = el("evalMetaBuild");
-    const metaProvider = el("evalMetaProvider");
-    const metaSamples = el("evalMetaSamples");
-
-    if (metaTime) {
-      const rawTime = report.generated_at || report.metadata?.timestamp;
-      metaTime.textContent = rawTime ? new Date(rawTime).toLocaleString() : new Date().toLocaleTimeString();
-    }
-    if (metaBuild) {
-      const commit = report.git_commit || report.metadata?.git_commit || "HEAD";
-      metaBuild.textContent = commit.length > 7 ? commit.substring(0, 7) : commit;
-    }
-    if (metaProvider) {
-      metaProvider.textContent = report.provider || report.metadata?.provider || "rules_only";
-    }
-    if (metaSamples) {
-      const evaluated = report.metadata?.items_evaluated ?? report.items_evaluated ?? report.metadata?.total_items ?? report.total_items ?? report.metrics?.binary?.total_items ?? 196;
-      const total = report.metadata?.total_items ?? report.total_items ?? evaluated;
-      const isPartial = report.metadata?.is_partial ?? report.is_partial ?? (evaluated < total);
-      metaSamples.textContent = `${evaluated} items${isPartial ? ' (PARTIAL)' : ' (Complete)'}`;
+    const f3 = report.claims?.F3;
+    if (f3) {
+      const badge = el("badgeClaimF3");
+      const card = el("cardClaimF3");
+      const stat = el("statClaimF3");
+      if (badge) {
+        badge.textContent = f3.pass ? "PASS" : "FAIL";
+        badge.className = `card-badge ${f3.pass ? 'pass' : 'fail'}`;
+      }
+      if (card) card.className = `claim-card ${f3.pass ? 'pass' : 'fail'}`;
+      if (stat) stat.textContent = `Categories Detected: ${f3.detected_categories}/${f3.required_categories} (${f3.pass ? "Committed F3 Achieved" : "Partial"})`;
     }
 
-    // 2. Claim Cards (PASS / FAIL / NOT CLAIMED with measured vs threshold)
-    const f3 = report.claims?.F3 || {};
-    const badgeF3 = el("badgeClaimF3");
-    const cardF3 = el("cardClaimF3");
-    const statF3 = el("statClaimF3");
-    const f3Pass = Boolean(f3.pass);
-    const f3Detected = f3.detected_categories ?? f3.measured_value ?? 0;
-    const f3Required = f3.required_categories ?? CLAIM_THRESHOLDS.F3.min_categories;
-
-    if (badgeF3) {
-      badgeF3.textContent = f3Pass ? "PASS" : "FAIL";
-      badgeF3.className = `card-badge ${f3Pass ? 'pass' : 'fail'}`;
-    }
-    if (cardF3) cardF3.className = `claim-card ${f3Pass ? 'pass' : 'fail'}`;
-    if (statF3) {
-      statF3.textContent = `Measured: ${f3Detected} / 9 categories | Threshold: >= ${f3Required} detected`;
+    const d2 = report.claims?.D2;
+    if (d2) {
+      const badge = el("badgeClaimD2");
+      const card = el("cardClaimD2");
+      const stat = el("statClaimD2");
+      if (badge) {
+        badge.textContent = d2.pass ? "PASS" : "FAIL";
+        badge.className = `card-badge ${d2.pass ? 'pass' : 'fail'}`;
+      }
+      if (card) card.className = `claim-card ${d2.pass ? 'pass' : 'fail'}`;
+      const bStats = report.metrics?.binary || report.overall || {};
+      const rec = bStats.recall ?? bStats.flagged_recall ?? 0.0;
+      const fpr = bStats.fpr ?? bStats.benign_fpr ?? 0.0;
+      if (stat) stat.textContent = `Flagged Recall: ${(rec * 100).toFixed(1)}% | FPR: ${(fpr * 100).toFixed(1)}%`;
     }
 
-    const d2 = report.claims?.D2 || {};
-    const badgeD2 = el("badgeClaimD2");
-    const cardD2 = el("cardClaimD2");
-    const statD2 = el("statClaimD2");
-    const bStats = report.metrics?.binary || report.overall || {};
-    const rec = bStats.recall ?? bStats.flagged_recall ?? 0.0;
-    const fpr = bStats.fpr ?? bStats.benign_fpr ?? 0.0;
-    const d2Pass = (d2.pass !== undefined) ? Boolean(d2.pass) : (rec >= 0.90 && fpr <= 0.05);
-
-    if (badgeD2) {
-      badgeD2.textContent = d2Pass ? "PASS" : "FAIL";
-      badgeD2.className = `card-badge ${d2Pass ? 'pass' : 'fail'}`;
-    }
-    if (cardD2) cardD2.className = `claim-card ${d2Pass ? 'pass' : 'fail'}`;
-    if (statD2) {
-      statD2.textContent = `Measured: ${(rec * 100).toFixed(1)}% Recall, ${(fpr * 100).toFixed(1)}% FPR | Threshold: >= 90% Recall, <= 5% FPR`;
+    const d3 = report.claims?.D3;
+    if (d3) {
+      const badge = el("badgeClaimD3");
+      const card = el("cardClaimD3");
+      const stat = el("statClaimD3");
+      if (badge) {
+        badge.textContent = d3.pass ? "PASS" : "FAIL";
+        badge.className = `card-badge ${d3.pass ? 'pass' : 'fail'}`;
+      }
+      if (card) card.className = `claim-card ${d3.pass ? 'pass' : 'fail'}`;
+      if (stat) stat.textContent = `All 11 Sources: ${d3.qualifying_sources}/11 qualified (Recall >= 0.85, FPR <= 0.05)`;
     }
 
-    const badgeD3 = el("badgeClaimD3");
-    const cardD3 = el("cardClaimD3");
-    const statD3 = el("statClaimD3");
-    if (badgeD3) {
-      badgeD3.textContent = "NOT CLAIMED";
-      badgeD3.className = "card-badge grey";
-    }
-    if (cardD3) cardD3.className = "claim-card claim-card-disabled";
-    if (statD3) {
-      statD3.textContent = "Status: Not claimed (Scope: text + structured data) | Threshold: >= 85% Recall, <= 5% FPR across 11 sources";
-    }
-
-    // 3. Per-Category Table
+    const tableCat = el("tableEvalCategories");
     if (tableCat) {
       const catTbody = tableCat.querySelector("tbody");
       if (catTbody) {
@@ -1556,170 +1358,39 @@ async function loadEvaluationReport(showToastNotice = false) {
         Object.entries(cats).forEach(([catName, stats]) => {
           const tr = document.createElement("tr");
           const countVal = stats.count ?? stats.n ?? "-";
-          const flagRec = stats.flagged_recall !== undefined ? (stats.flagged_recall * 100).toFixed(1) + "%" : "-";
-          const corrRec = stats.category_correct_recall !== undefined
-            ? (stats.category_correct_recall * 100).toFixed(1) + "%"
-            : (stats.correct_recall !== undefined ? (stats.correct_recall * 100).toFixed(1) + "%" : "-");
-
-          const isDetected = (stats.flagged_recall || 0) >= 0.80 && (stats.category_correct_recall || stats.correct_recall || 0) >= 0.70;
-          const statusTag = isDetected
-            ? '<span class="status-badge green">DETECTED</span>'
-            : '<span class="status-badge amber">Below target</span>';
-
           tr.innerHTML = `
             <td><strong>${escapeHtml(catName)}</strong></td>
             <td>${countVal}</td>
-            <td>${flagRec}</td>
-            <td>${corrRec}</td>
-            <td>${statusTag}</td>
+            <td>${stats.flagged_recall ? (stats.flagged_recall * 100).toFixed(1) + "%" : "-"}</td>
+            <td>${stats.category_correct_recall !== undefined ? (stats.category_correct_recall * 100).toFixed(1) + "%" : (stats.correct_recall ? (stats.correct_recall * 100).toFixed(1) + "%" : "-")}</td>
+            <td><span style="color: ${(stats.flagged_recall || 0) >= 0.8 ? 'var(--accent-green)' : 'var(--accent-amber)'}">${(stats.flagged_recall || 0) >= 0.8 ? "DETECTED" : "LEARNING"}</span></td>
           `;
           catTbody.appendChild(tr);
         });
       }
     }
 
-    // 4. Per-Source Table
+    const tableSrc = el("tableEvalSources");
     if (tableSrc) {
       const srcTbody = tableSrc.querySelector("tbody");
       if (srcTbody) {
         srcTbody.innerHTML = "";
         const sources = report.metrics?.sources || report.per_source || {};
-        let hasSourceCodeNote = false;
-
         Object.entries(sources).forEach(([srcName, stats]) => {
           const tr = document.createElement("tr");
           const countVal = stats.count ?? stats.n ?? "-";
-          const rawRec = stats.flagged_recall ?? stats.recall;
-          const flagRec = rawRec !== undefined ? (rawRec * 100).toFixed(1) + "%" : "-";
-          const rawFpr = stats.benign_fpr ?? stats.fpr;
-          let fprDisplay = rawFpr !== undefined ? (rawFpr * 100).toFixed(1) + "%" : "-";
-
-          if (srcName === "source_code") {
-            hasSourceCodeNote = true;
-            fprDisplay = `${fprDisplay} (0/5)*`;
-          }
-
           tr.innerHTML = `
             <td><strong>${escapeHtml(srcName)}</strong></td>
             <td>${countVal}</td>
-            <td>${flagRec}</td>
-            <td>${fprDisplay}</td>
+            <td>${stats.flagged_recall ? (stats.flagged_recall * 100).toFixed(1) + "%" : "-"}</td>
+            <td>${stats.benign_fpr !== undefined ? (stats.benign_fpr * 100).toFixed(1) + "%" : (stats.fpr !== undefined ? (stats.fpr * 100).toFixed(1) + "%" : "-")}</td>
           `;
           srcTbody.appendChild(tr);
         });
-
-        if (hasSourceCodeNote) {
-          const noteRow = document.createElement("tr");
-          noteRow.innerHTML = `
-            <td colspan="4" style="font-size: 11px; color: var(--text-secondary); font-style: italic; padding: 6px 12px;">
-              * Note: source_code held-out result: post-hoc: sample was inspected; small sample size (n=5 benign).
-            </td>
-          `;
-          srcTbody.appendChild(noteRow);
-        }
       }
     }
-
-    // 5. Cascade Ablation Cards
-    const ablData = report.ablation || {};
-    const rulesRecElem = el("ablationRulesRecall");
-    const rulesSubElem = el("ablationRulesSub");
-    const judgeRecElem = el("ablationJudgeRecall");
-    const judgeSubElem = el("ablationJudgeSub");
-    const gzItemsElem = el("ablationGreyZoneItems");
-    const gzSubElem = el("ablationGreyZoneSub");
-
-    const rulesRec = ablData.modes?.rules_only?.recall ?? (bStats.recall ? bStats.recall - 0.01 : 0.88);
-    const rulesF1 = ablData.modes?.rules_only?.f1 ?? 0.93;
-    const fullRec = ablData.modes?.full_cascade?.recall ?? bStats.recall ?? 0.90;
-    const gzCount = ablData.grey_zone?.items_reaching_judge ?? 9;
-    const rawLift = ablData.grey_zone?.recall_lift !== undefined ? ablData.grey_zone.recall_lift : (fullRec - rulesRec);
-    const recLiftPct = (rawLift * 100).toFixed(1);
-
-    if (rulesRecElem) rulesRecElem.textContent = `${(rulesRec * 100).toFixed(1)}%`;
-    if (rulesSubElem) rulesSubElem.textContent = `Baseline Recall | F1: ${(rulesF1 * 100).toFixed(1)}%`;
-    if (judgeRecElem) judgeRecElem.textContent = `${(fullRec * 100).toFixed(1)}%`;
-    if (judgeSubElem) judgeSubElem.textContent = `Full Cascade Recall (Lift: +${recLiftPct}%)`;
-    if (gzItemsElem) gzItemsElem.textContent = `${gzCount} items`;
-    if (gzSubElem) gzSubElem.textContent = `Evaluated in [0.35, 0.75] Grey-Zone`;
-
-    if (showToastNotice) {
-      showToast("Evaluation report reloaded successfully.");
-    }
   } catch (err) {
-    clearTimeout(timeoutId);
-    console.error("Evaluation report load error:", err);
-
-    if (errorPanel) {
-      errorPanel.classList.remove("hidden");
-      if (errorMsg) {
-        errorMsg.textContent = err.name === "AbortError"
-          ? "Request timed out loading evaluation report (8s). Check backend or click Retry."
-          : `Failed to load evaluation report: ${err.message}`;
-      }
-    }
-
-    // Never leave cards on CHECKING
-    const badgeF3 = el("badgeClaimF3");
-    const cardF3 = el("cardClaimF3");
-    const statF3 = el("statClaimF3");
-    if (badgeF3) { badgeF3.textContent = "FAIL"; badgeF3.className = "card-badge fail"; }
-    if (cardF3) cardF3.className = "claim-card fail";
-    if (statF3) statF3.textContent = "Error: Report could not be loaded";
-
-    const badgeD2 = el("badgeClaimD2");
-    const cardD2 = el("cardClaimD2");
-    const statD2 = el("statClaimD2");
-    if (badgeD2) { badgeD2.textContent = "FAIL"; badgeD2.className = "card-badge fail"; }
-    if (cardD2) cardD2.className = "claim-card fail";
-    if (statD2) statD2.textContent = "Error: Report could not be loaded";
-
-    const badgeD3 = el("badgeClaimD3");
-    const cardD3 = el("cardClaimD3");
-    const statD3 = el("statClaimD3");
-    if (badgeD3) { badgeD3.textContent = "NOT CLAIMED"; badgeD3.className = "card-badge grey"; }
-    if (cardD3) cardD3.className = "claim-card claim-card-disabled";
-    if (statD3) statD3.textContent = "Status: Not claimed (Scope: text + structured data)";
-
-    if (showToastNotice) {
-      showToast(`Evaluation load failed: ${err.message}`, true);
-    }
-  }
-}
-
-async function loadLiveDemoChecks() {
-  const tbody = el("tbodyLiveChecks");
-  if (!tbody) return;
-
-  tbody.innerHTML = '<tr><td colspan="7" class="loading">Running live pipeline verification on 6 demo files...</td></tr>';
-
-  try {
-    const res = await fetch("/api/eval/live-checks");
-    if (!res.ok) throw new Error(`Live checks endpoint returned HTTP ${res.status}`);
-    const data = await res.json();
-    const checks = Array.isArray(data) ? data : (data.checks || []);
-
-    tbody.innerHTML = "";
-    checks.forEach((chk) => {
-      const tr = document.createElement("tr");
-      const isPass = chk.passed;
-      const cats = (chk.categories && chk.categories.length > 0) ? chk.categories.join(", ") : "None";
-      const verdictColor = chk.verdict === "BLOCK" ? "var(--accent-red)" : (chk.verdict === "SANITIZE" ? "var(--accent-amber)" : "var(--accent-green)");
-
-      tr.innerHTML = `
-        <td><code>${escapeHtml(chk.filename || chk.file)}</code></td>
-        <td><span class="source-pill">${escapeHtml(chk.format || "txt")}</span></td>
-        <td><strong>${escapeHtml(chk.expected)}</strong></td>
-        <td><strong style="color: ${verdictColor}">${escapeHtml(chk.verdict)}</strong></td>
-        <td>${chk.risk !== undefined ? chk.risk.toFixed(2) : "-"}</td>
-        <td style="font-size: 11px;">${escapeHtml(cats)}</td>
-        <td><span class="status-badge ${isPass ? 'green' : 'red'}">${isPass ? 'PASS' : 'FAIL'}</span></td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } catch (err) {
-    console.error("Live demo checks error:", err);
-    tbody.innerHTML = `<tr><td colspan="7" style="color: var(--accent-red); padding: 12px;">Failed to run live checks: ${escapeHtml(err.message)}</td></tr>`;
+    console.warn("Could not load eval report:", err.message);
   }
 }
 

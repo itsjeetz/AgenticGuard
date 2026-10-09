@@ -1,0 +1,64 @@
+<svg viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <style>
+      .box { fill: #f8f9fa; stroke: #333; stroke-width: 2px; rx: 8px; }
+      .box-blue { fill: #e3f2fd; stroke: #1976d2; stroke-width: 2px; rx: 8px; }
+      .box-green { fill: #e8f5e9; stroke: #2e7d32; stroke-width: 2px; rx: 8px; }
+      .box-orange { fill: #fff3e0; stroke: #e65100; stroke-width: 2px; rx: 8px; }
+      .text { font-family: sans-serif; font-size: 14px; text-anchor: middle; fill: #333; }
+      .title { font-family: sans-serif; font-size: 16px; font-weight: bold; text-anchor: middle; fill: #333; }
+      .line { stroke: #333; stroke-width: 2px; fill: none; marker-end: url(#arrow); }
+    </style>
+  </defs>
+
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="400" y="40" class="title" font-size="20px">AegisAgent Architecture Pipeline</text>
+
+  <!-- L1 -->
+  <rect x="50" y="80" width="220" height="60" class="box-blue"/>
+  <text x="160" y="105" class="title">L1: Ingestion</text>
+  <text x="160" y="125" class="text">(Format Handlers: 11 Sources)</text>
+
+  <!-- L2 -->
+  <rect x="50" y="180" width="220" height="60" class="box-blue"/>
+  <text x="160" y="205" class="title">L2: Normalization</text>
+  <text x="160" y="225" class="text">(Deobfuscation)</text>
+
+  <!-- L3 -->
+  <rect x="50" y="280" width="220" height="120" class="box-orange"/>
+  <text x="160" y="305" class="title">L3: Detection</text>
+  <text x="160" y="335" class="text">L3a: Rules</text>
+  <text x="160" y="355" class="text">L3b: HF Classifier (Optional)</text>
+  <text x="160" y="375" class="text">L3c: LLM Judge (Failover)</text>
+
+  <!-- L4 -->
+  <rect x="50" y="440" width="220" height="60" class="box-green"/>
+  <text x="160" y="465" class="title">L4: Fusion &amp; Policy</text>
+  <text x="160" y="485" class="text">(Verdict generation)</text>
+
+  <!-- L5 -->
+  <rect x="350" y="440" width="220" height="60" class="box-green"/>
+  <text x="460" y="465" class="title">L5: Neutralizer</text>
+  <text x="460" y="485" class="text">(Redaction &amp; Spotlighting)</text>
+
+  <!-- Auxiliary -->
+  <rect x="350" y="280" width="220" height="60" class="box"/>
+  <text x="460" y="305" class="title">Audit &amp; Feedback</text>
+  <text x="460" y="325" class="text">(SQLite + Human Loop)</text>
+  
+  <rect x="350" y="180" width="220" height="60" class="box"/>
+  <text x="460" y="205" class="title">Observability</text>
+  <text x="460" y="225" class="text">(/api/health, Metrics)</text>
+
+  <!-- Arrows -->
+  <path d="M 160 140 L 160 170" class="line"/>
+  <path d="M 160 240 L 160 270" class="line"/>
+  <path d="M 160 400 L 160 430" class="line"/>
+  <path d="M 270 470 L 340 470" class="line"/>
+  
+  <path d="M 270 310 L 340 310" class="line"/>
+  <path d="M 270 210 L 340 210" class="line"/>
+</svg>

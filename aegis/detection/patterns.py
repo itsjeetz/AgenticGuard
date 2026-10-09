@@ -314,7 +314,7 @@ POISONING_PATTERNS: list[RulePattern] = [
 INDIRECT_PATTERNS: list[RulePattern] = [
     RulePattern(
         id="ind_ai_directive_in_data",
-        attack_type=AttackType.INDIRECT_PROMPT_INJECTION,
+        attack_type=AttackType.INSTRUCTION_OVERRIDE,
         regex=re.compile(
             r"\b(?:(?:note|instruction|directive|message|notice)\s+(?:for|to)\s+(?:the\s+)?(?:AI|assistant|LLM|agent|model)|"
             r"(?:AI|assistant|LLM|agent)\s*,\s*(?:please\s+)?(?:ignore|disregard|override|forward|send|execute|do\s+not))\b",
@@ -325,7 +325,7 @@ INDIRECT_PATTERNS: list[RulePattern] = [
     ),
     RulePattern(
         id="ind_carrier_override",
-        attack_type=AttackType.INDIRECT_PROMPT_INJECTION,
+        attack_type=AttackType.INSTRUCTION_OVERRIDE,
         regex=re.compile(
             r"\b(?:when\s+(?:processing|reading|summarizing)\s+this\s+(?:email|document|page|file|ticket|data)|"
             r"if\s+you\s+are\s+an?\s+(?:AI|assistant|automated\s+system))\b",

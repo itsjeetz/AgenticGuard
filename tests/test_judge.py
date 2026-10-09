@@ -68,13 +68,12 @@ def test_judge_garbage_output_treated_as_no_opinion():
 
 def test_judge_degraded_when_key_absent(monkeypatch):
     """Verify judge degrades gracefully when provider keys are not set."""
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
-    monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    monkeypatch.delenv("GROQ_API_KEY_2", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GEMINI_API_KEY_2", raising=False)
+    for k in list(os.environ.keys()):
+        if "API_KEY" in k:
+            monkeypatch.delenv(k, raising=False)
     monkeypatch.setenv("LLM_PROVIDER_ORDER", "")
     judge = LLMJudge()
+    judge.engine.__init__()
     assert not judge.is_available
 
 

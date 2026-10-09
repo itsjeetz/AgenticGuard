@@ -1,7 +1,7 @@
 """Core data models for AgenticGuard (§4)."""
 
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -110,6 +110,7 @@ class HealthResponse(BaseModel):
 
     status: str
     version: str
+    git_commit: Optional[str] = None
     ocr_available: bool
     classifier_backend: str
     judge_available: bool

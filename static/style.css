@@ -794,6 +794,20 @@ body {
   color: var(--text-muted);
   min-width: 34px;
   text-align: right;
+  cursor: help;
+}
+
+.pct-tooltip-icon {
+  font-size: 10px;
+  opacity: 0.65;
+  margin-left: 2px;
+  cursor: help;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.pct-tooltip-icon:hover {
+  opacity: 1;
 }
 
 .attack-detection-row.detected .attack-row-pct {
@@ -1380,6 +1394,10 @@ mark.attack-span {
 .claim-card.fail {
   border-color: rgba(248, 81, 73, 0.4);
 }
+.claim-card.inconclusive {
+  border-color: rgba(245, 158, 11, 0.4);
+  opacity: 0.8;
+}
 
 .card-badge {
   position: absolute;
@@ -1395,6 +1413,7 @@ mark.attack-span {
 
 .card-badge.pass { background: var(--accent-green-bg); color: var(--accent-green); }
 .card-badge.fail { background: var(--accent-red-bg); color: var(--accent-red); }
+.card-badge.inconclusive { background: rgba(245, 158, 11, 0.1); color: var(--accent-orange); border-color: var(--accent-orange); }
 
 .claim-card h3 {
   font-size: 15px;

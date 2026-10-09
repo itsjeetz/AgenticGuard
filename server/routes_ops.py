@@ -408,20 +408,74 @@ def get_live_demo_checks() -> dict[str, Any]:
     }
 
 
+import threading
+
+_EVAL_STATE = {
+    "is_running": False,
+    "processed": 0,
+    "total": 0,
+    "status": "idle",
+    "eta_sec": 0,
+    "cancelled": False
+}
+
+class CancelEvalException(Exception): pass
+
+def _run_benchmark_bg(mode: str, split: str):
+    from eval.run_eval import run_evaluation
+    _EVAL_STATE["is_running"] = True
+    _EVAL_STATE["cancelled"] = False
+    _EVAL_STATE["processed"] = 0
+    _EVAL_STATE["total"] = 0
+    _EVAL_STATE["status"] = "starting"
+    
+    def _cb(processed, total, status, eta_sec):
+        if _EVAL_STATE["cancelled"]:
+            raise CancelEvalException("Evaluation cancelled by user.")
+        _EVAL_STATE["processed"] = processed
+        _EVAL_STATE["total"] = total
+        _EVAL_STATE["status"] = status
+        _EVAL_STATE["eta_sec"] = eta_sec
+
+    try:
+        run_evaluation(split=split, mode=mode, progress_callback=_cb)
+    except CancelEvalException:
+        pass
+    except Exception as e:
+        print(f"Eval run error: {e}")
+    finally:
+        _EVAL_STATE["is_running"] = False
+
+
+class EvalRunRequest(BaseModel):
+    mode: str = "full_cascade"
+    split: str = "test"
+
+
 @router.post("/eval/run")
-def trigger_eval_run() -> dict[str, Any]:
+def trigger_eval_run(req: EvalRunRequest) -> dict[str, Any]:
     """Trigger a new live evaluation run."""
     if is_demo_mode():
         raise HTTPException(
             status_code=403,
             detail="Live evaluation runs are disabled in public demo mode. Pre-generated benchmark reports are served under /api/eval/latest."
         )
-    try:
-        from eval.benchmark import run_benchmark
-        report = run_benchmark()
-        return {"status": "success", "report": report}
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Evaluation run failed: {exc}")
+    if _EVAL_STATE["is_running"]:
+        raise HTTPException(status_code=400, detail="Evaluation already running")
+        
+    threading.Thread(target=_run_benchmark_bg, args=(req.mode, req.split), daemon=True).start()
+    return {"status": "started"}
+
+@router.get("/eval/progress")
+def get_eval_progress() -> dict[str, Any]:
+    return _EVAL_STATE
+
+@router.post("/eval/cancel")
+def cancel_eval_run() -> dict[str, Any]:
+    if not _EVAL_STATE["is_running"]:
+        return {"status": "not_running"}
+    _EVAL_STATE["cancelled"] = True
+    return {"status": "cancelled"}
 
 
 @router.post("/redteam/run")

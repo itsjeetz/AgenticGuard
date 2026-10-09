@@ -76,9 +76,13 @@ def get_health() -> HealthResponse:
 
     degraded = not ocr_avail or not judge_avail
 
+    from eval.report import get_git_commit
+    commit = get_git_commit()
+
     return HealthResponse(
         status="ok",
         version="0.1.0",
+        git_commit=commit,
         ocr_available=ocr_avail,
         classifier_backend=clf_backend,
         judge_available=judge_avail,

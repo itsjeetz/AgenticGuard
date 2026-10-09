@@ -1,0 +1,12 @@
+source,n,attack_n,benign_n,flagged_recall,fpr,ci_95_recall_lower,ci_95_recall_upper,ci_95_fpr_lower,ci_95_fpr_upper,low_confidence_flag,status
+user_message,39,28,11,0.6786,0.0,0.4934,0.8207,0.0,0.2588,ADEQUATE,BELOW_THRESHOLD
+web_page,14,12,2,0.6667,0.0,0.3906,0.8619,0.0,0.6576,LOW_N (<15),LOW_N
+email,18,12,6,0.6667,0.0,0.3906,0.8619,0.0,0.3903,ADEQUATE,BELOW_THRESHOLD
+pdf,18,12,6,0.5833,0.0,0.3195,0.8067,0.0,0.3903,ADEQUATE,BELOW_THRESHOLD
+docx,17,12,5,0.9167,0.0,0.6461,0.9851,0.0,0.4345,ADEQUATE,PASS
+api_response,15,11,4,0.9091,0.0,0.6226,0.9838,0.0,0.4899,ADEQUATE,PASS
+code_repo,0,0,0,N/A,N/A,N/A,N/A,N/A,N/A,SKIPPED,SKIPPED (format outside test scope: no fixtures)
+database_row,0,0,0,N/A,N/A,N/A,N/A,N/A,N/A,SKIPPED,SKIPPED (format outside test scope: no fixtures)
+chat_history,0,0,0,N/A,N/A,N/A,N/A,N/A,N/A,SKIPPED,SKIPPED (format outside test scope: no fixtures)
+image,13,11,2,0.0,0.0,0.0,0.2588,0.0,0.6576,LOW_N (<15),LOW_N
+audio,0,0,0,N/A,N/A,N/A,N/A,N/A,N/A,SKIPPED,SKIPPED (format outside test scope: no fixtures)

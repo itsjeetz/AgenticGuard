@@ -113,7 +113,7 @@ def test_demo_mode_disabled_endpoints(monkeypatch):
     assert res.status_code == 403
 
     # 5. POST /api/eval/run
-    res = client.post("/api/eval/run")
+    res = client.post("/api/eval/run", json={"mode": "full_cascade", "split": "test"})
     assert res.status_code == 403
     assert "disabled in public demo mode" in res.json()["detail"]
 

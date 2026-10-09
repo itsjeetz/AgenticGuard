@@ -48,7 +48,7 @@ const ATTACK_PRESETS = {
   },
 };
 
-// Fixed Canonical Order of 9 Attack Vectors matching Preset dropdown
+// Fixed Canonical Order of 8 Attack Vectors matching Preset dropdown
 const ORDERED_ATTACK_TYPES = [
   { key: "INSTRUCTION_OVERRIDE", name: "Instruction Override" },
   { key: "ROLE_CHANGE", name: "Role Change" },
@@ -57,12 +57,12 @@ const ORDERED_ATTACK_TYPES = [
   { key: "CREDENTIAL_THEFT", name: "Credential Theft" },
   { key: "CONTEXT_POISONING", name: "Context Poisoning" },
   { key: "MULTI_STEP_JAILBREAK", name: "Multi-Step Jailbreak" },
-  { key: "ENCODED_INSTRUCTIONS", name: "Encoded Instructions" },
-  { key: "INDIRECT_PROMPT_INJECTION", name: "Indirect Prompt Injection" },
+  { key: "ENCODED_INSTRUCTIONS", name: "Encoded Instructions" }
 ];
 
 let currentPolicyData = null;
 let selectedFile = null;
+let customSelectedFile = null;
 
 /**
  * DOM Element Selector Helper (§0)
@@ -378,7 +378,7 @@ function renderStandbyAttackDetection() {
         <span class="attack-row-title">${escapeHtml(item.name)}</span>
         <div class="attack-row-meta">
           <span class="attack-status-tag standby">Not detected</span>
-          <span class="attack-row-pct">0%</span>
+          <span class="attack-row-pct" title="Model confidence for this input, not an accuracy rate.">0% <span class="pct-tooltip-icon" title="Model confidence for this input, not an accuracy rate.">ℹ️</span></span>
         </div>
       </div>
       <div class="attack-bar-bg">
@@ -470,20 +470,57 @@ function renderAttackDetection(verdict) {
   evaluated.forEach((item) => {
     const row = document.createElement("div");
     row.className = `attack-detection-row ${item.isDetected ? "detected" : "muted"}`;
+    const btnId = `btnToggle_${item.key}`;
+    const drawerId = `drawer_${item.key}`;
+
+    const matching = (verdict.findings || []).filter(f => f.attack_type === item.key);
+    const evQuotes = matching.map(f => f.evidence).filter(Boolean);
+    const evText = evQuotes.length > 0 ? evQuotes.join(" | ") : "Pattern detected by firewall behavioral analysis.";
+
     row.innerHTML = `
       <div class="attack-row-info">
         <span class="attack-row-title">${escapeHtml(item.name)}</span>
         <div class="attack-row-meta">
+          ${item.isDetected ? `
+          <button type="button" class="btn-evidence-toggle" id="${btnId}" aria-controls="${drawerId}" aria-expanded="false">
+            <span>Evidence</span>
+            <svg class="chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>` : ""}
           <span class="attack-status-tag ${item.isDetected ? "detected" : "clean"}">
             ${item.isDetected ? "Detected" : "Not detected"}
           </span>
-          <span class="attack-row-pct">${item.percentage}%</span>
+          <span class="attack-row-pct" title="Model confidence for this input, not an accuracy rate.">${item.percentage}% <span class="pct-tooltip-icon" title="Model confidence for this input, not an accuracy rate.">ℹ️</span></span>
         </div>
       </div>
       <div class="attack-bar-bg">
         <div class="attack-bar-fill" style="width: ${item.percentage}%"></div>
       </div>
+      ${item.isDetected ? `
+      <div class="attack-evidence-drawer" id="${drawerId}" role="region" aria-labelledby="${btnId}" style="display: none;">
+        <div class="evidence-content">${escapeHtml(evText)}</div>
+      </div>` : ""}
     `;
+
+    if (item.isDetected) {
+      const toggleBtn = row.querySelector(".btn-evidence-toggle");
+      const drawer = row.querySelector(".attack-evidence-drawer");
+      if (toggleBtn && drawer) {
+        const toggleDrawer = () => {
+          const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
+          toggleBtn.setAttribute("aria-expanded", !isOpen ? "true" : "false");
+          toggleBtn.classList.toggle("expanded", !isOpen);
+          drawer.style.display = !isOpen ? "block" : "none";
+        };
+        toggleBtn.addEventListener("click", toggleDrawer);
+        toggleBtn.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggleDrawer();
+          }
+        });
+      }
+    }
+
     list.appendChild(row);
   });
 }
@@ -911,16 +948,160 @@ function escapeHtml(str) {
 function initSandboxTab() {
   const btn = el("btnRunSandbox");
   if (btn) btn.addEventListener("click", runSandboxScenario);
+
+  const scenarioSelect = el("selectScenario");
+  const customControls = el("customContentControls");
+
+  function syncScenarioVisibility() {
+    if (!scenarioSelect || !customControls) return;
+    if (scenarioSelect.value === "custom") {
+      customControls.classList.remove("hidden");
+      customControls.style.display = "block";
+    } else {
+      customControls.classList.add("hidden");
+      customControls.style.display = "none";
+    }
+  }
+
+  if (scenarioSelect) {
+    scenarioSelect.addEventListener("change", syncScenarioVisibility);
+    syncScenarioVisibility();
+  }
+
+  // Custom Content File Dropzone Handling
+  const customDropzone = el("customDropzone");
+  const customFileInput = el("customFileInput");
+  const customFileNameDisplay = el("customFileNameDisplay");
+  const customTextarea = el("customTextarea");
+
+  if (customDropzone) {
+    customDropzone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      customDropzone.classList.add("dragover");
+    });
+    customDropzone.addEventListener("dragleave", () => {
+      customDropzone.classList.remove("dragover");
+    });
+    customDropzone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      customDropzone.classList.remove("dragover");
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        handleCustomFileSelected(e.dataTransfer.files[0]);
+      }
+    });
+  }
+
+  if (customFileInput) {
+    customFileInput.addEventListener("change", () => {
+      if (customFileInput.files && customFileInput.files.length > 0) {
+        handleCustomFileSelected(customFileInput.files[0]);
+      }
+    });
+  }
+
+  if (customTextarea) {
+    customTextarea.addEventListener("input", () => {
+      if (customSelectedFile) {
+        customSelectedFile = null;
+        if (customFileNameDisplay) customFileNameDisplay.textContent = "";
+      }
+    });
+  }
+}
+
+function handleCustomFileSelected(file) {
+  if (!file) return;
+  const maxBytes = 2 * 1024 * 1024; // 2 MB limit
+  if (file.size > maxBytes) {
+    showToast(`File size (${(file.size / (1024 * 1024)).toFixed(1)} MB) exceeds 2 MB upload limit.`, true);
+    return;
+  }
+  customSelectedFile = file;
+  const customFileNameDisplay = el("customFileNameDisplay");
+  if (customFileNameDisplay) {
+    customFileNameDisplay.textContent = `Selected: ${file.name} (${Math.round(file.size / 1024)} KB)`;
+  }
+  const customTextarea = el("customTextarea");
+  if (customTextarea && !customTextarea.value.trim()) {
+    customTextarea.placeholder = `File '${file.name}' attached. Untrusted content will be extracted from file.`;
+  }
 }
 
 async function runSandboxScenario() {
   const scenarioSelect = el("selectScenario");
-  const scenarioId = scenarioSelect ? scenarioSelect.value : "S1";
+  const scenarioId = scenarioSelect ? scenarioSelect.value : "custom";
   const unprotBody = el("unprotBody");
   const protBody = el("protBody");
   const unprotStatus = el("unprotStatus");
   const protStatus = el("protStatus");
 
+  // ----------------------------------------------------
+  // Path A: Custom Content Mode
+  // ----------------------------------------------------
+  if (scenarioId === "custom") {
+    const customTextarea = el("customTextarea");
+    const customUserTask = el("customUserTask");
+    const selectRuns = el("selectRuns");
+
+    const content = customTextarea ? customTextarea.value.trim() : "";
+    const userTask = customUserTask ? customUserTask.value.trim() || "Summarize this content for me." : "Summarize this content for me.";
+    const runs = selectRuns ? parseInt(selectRuns.value, 10) || 1 : 1;
+
+    if (!content && !customSelectedFile) {
+      showToast("Please enter text or select a file for custom content comparison.", true);
+      return;
+    }
+
+    if (unprotStatus) unprotStatus.textContent = "Executing...";
+    if (protStatus) protStatus.textContent = "Executing...";
+    if (unprotBody) unprotBody.innerHTML = `<div class="loading">Running unprotected agent (${runs} run${runs > 1 ? 's' : ''})...</div>`;
+    if (protBody) protBody.innerHTML = `<div class="loading">Inspecting through firewall and running protected agent (${runs} run${runs > 1 ? 's' : ''})...</div>`;
+
+    try {
+      let res;
+      if (customSelectedFile) {
+        const formData = new FormData();
+        formData.append("file", customSelectedFile);
+        if (content) formData.append("content", content);
+        formData.append("user_task", userTask);
+        formData.append("runs", runs);
+        res = await fetch("/api/agent/compare/custom", {
+          method: "POST",
+          body: formData,
+        });
+      } else {
+        res = await fetch("/api/agent/compare/custom", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ content, user_task: userTask, runs }),
+        });
+      }
+
+      if (!res.ok) {
+        let errMsg = "Custom comparison request failed";
+        try {
+          const errJson = await res.json();
+          errMsg = errJson.detail || errMsg;
+        } catch (_) {}
+        throw new Error(errMsg);
+      }
+
+      const data = await res.json();
+      renderCustomComparisonResults(data, unprotBody, protBody, unprotStatus, protStatus);
+      showToast(`Custom comparison completed (${runs} run${runs > 1 ? 's' : ''})`);
+    } catch (err) {
+      showToast(err.message, true);
+      if (unprotStatus) unprotStatus.textContent = "Error";
+      if (protStatus) protStatus.textContent = "Error";
+      if (unprotBody) unprotBody.innerHTML = `<div class="empty-state" style="color: var(--accent-red);">${escapeHtml(err.message)}</div>`;
+      if (protBody) protBody.innerHTML = `<div class="empty-state" style="color: var(--accent-red);">${escapeHtml(err.message)}</div>`;
+    }
+    return;
+  }
+
+  // ----------------------------------------------------
+  // Path B: Preset Scenarios S1-S9, B1-B3
+  // ----------------------------------------------------
   if (unprotStatus) unprotStatus.textContent = "Executing...";
   if (protStatus) protStatus.textContent = "Executing...";
   if (unprotBody) unprotBody.innerHTML = '<div class="loading">Running unprotected victim agent...</div>';
@@ -989,6 +1170,93 @@ function renderSandboxResult(data, container, statusElem, isProtected) {
   <div style="background: var(--bg-tertiary); padding: 10px; border-radius: 4px; font-family: var(--font-mono); font-size: 11.5px; white-space: pre-wrap;">${escapeHtml(data.final_response)}</div>`;
 
   container.innerHTML = html;
+}
+
+function renderCustomComparisonResults(data, unprotBody, protBody, unprotStatus, protStatus) {
+  const unprotData = data.unprotected;
+  const protData = data.protected;
+
+  if (unprotStatus) {
+    unprotStatus.textContent = unprotData.successes > 0
+      ? `Outcome: VULNERABLE (ASR ${unprotData.asr.toFixed(1)}%)`
+      : `Outcome: CLEAN / BENIGN (0.0% ASR)`;
+  }
+  if (protStatus) {
+    protStatus.textContent = protData.successes === 0
+      ? `Outcome: PROTECTED (0.0% ASR)`
+      : `Outcome: PARTIAL (ASR ${protData.asr.toFixed(1)}%)`;
+  }
+
+  // Update summary metric cards
+  const unprotAsrElem = el("metricUnprotectedAsr");
+  if (unprotAsrElem) unprotAsrElem.textContent = `${unprotData.asr.toFixed(1)}%`;
+  const protAsrElem = el("metricProtectedAsr");
+  if (protAsrElem) protAsrElem.textContent = `${protData.asr.toFixed(1)}%`;
+
+  const detectedCatsStr = (data.detected_categories && data.detected_categories.length > 0)
+    ? data.detected_categories.join(", ")
+    : "None detected";
+
+  function renderSideHtml(sideData, isProtected) {
+    let html = `<div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border-color);">
+      <p><strong>Scenario:</strong> Custom &bull; <strong>Attack Type:</strong> <span class="card-badge info" style="font-size: 10.5px;">Custom (unlabeled)</span></p>
+      <p><strong>Firewall Detected Categories:</strong> <strong>${escapeHtml(detectedCatsStr)}</strong></p>
+      <p><strong>Firewall Action:</strong> <strong style="color: ${data.firewall_action === 'BLOCK' ? 'var(--accent-red)' : (data.firewall_action === 'SANITIZE' ? 'var(--accent-amber)' : 'var(--accent-green)')};">${escapeHtml(data.firewall_action)}</strong> (Risk: ${data.firewall_risk})</p>
+      <p><strong>Overall ASR:</strong> <strong style="color: ${sideData.asr > 0 ? 'var(--accent-red)' : 'var(--accent-green)'}; font-size: 13.5px;">${sideData.asr.toFixed(1)}% (${sideData.successes}/${sideData.runs} runs succeeded)</strong></p>
+    </div>`;
+
+    html += `<div style="margin-bottom: 12px; background: var(--bg-tertiary); padding: 8px 10px; border-radius: 4px; border-left: 3px solid ${isProtected ? 'var(--accent-green)' : 'var(--accent-red)'}; font-size: 11.5px;">
+      <div style="font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 10.5px; margin-bottom: 3px;">Agent input after firewall:</div>
+      <div style="font-family: var(--font-mono); font-size: 11px; white-space: pre-wrap; max-height: 100px; overflow-y: auto; color: var(--text-primary);">${escapeHtml(sideData.agent_input)}</div>
+    </div>`;
+
+    html += `<h4 style="margin: 12px 0 8px 0; font-size: 13px;">Execution Results (${sideData.runs} run${sideData.runs > 1 ? 's' : ''}):</h4>`;
+
+    sideData.run_results.forEach((run) => {
+      html += `
+        <div style="border: 1px solid var(--border-color); border-radius: 6px; padding: 10px; margin-bottom: 10px; background: var(--bg-card);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 6px;">
+            <strong style="font-size: 12px;">Run #${run.run} of ${sideData.runs}</strong>
+            <span class="timeline-badge ${run.attack_succeeded ? 'red' : 'green'}" style="font-weight: 700;">Attack Succeeded: ${run.attack_succeeded ? 'YES' : 'NO'}</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px; margin-bottom: 6px;">
+            <div>Signal (a) Tool Outside Allowlist: <strong style="color: ${run.signal_a ? 'var(--accent-red)' : 'var(--accent-green)'};">${run.signal_a ? 'YES (Violated)' : 'NO'}</strong></div>
+            <div>Signal (b) Canary Token Leaked: <strong style="color: ${run.signal_b ? 'var(--accent-red)' : 'var(--accent-green)'};">${run.signal_b ? 'YES (Leaked)' : 'NO'}</strong></div>
+          </div>
+
+          ${run.signal_c ? `
+            <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid var(--accent-amber); border-radius: 4px; padding: 6px 8px; font-size: 11px; color: var(--accent-amber); margin: 6px 0;">
+              ⚠️ <strong>Warning (Possible Compliance):</strong> LLM judge flagged compliance with planted instruction: <em>"${escapeHtml(run.compliance_quote)}"</em>
+            </div>
+          ` : ''}
+
+          <div style="font-size: 11px; font-weight: 600; margin: 6px 0 2px 0; color: var(--text-secondary);">Tool Execution Timeline (${run.tool_calls_attempted} calls, ${run.tool_calls_blocked} blocked):</div>
+          ${(!run.execution_log || run.execution_log.length === 0) ? '<div class="empty-state" style="padding: 6px; font-size: 10.5px;">No tool calls attempted.</div>' : run.execution_log.map((t) => {
+            const isBlocked = !t.allowed;
+            return `
+              <div class="timeline-item ${isBlocked ? 'blocked' : 'allowed'}" style="margin-bottom: 3px; padding: 4px 6px;">
+                <div class="timeline-header" style="font-size: 10.5px;">
+                  <strong>tool: ${escapeHtml(t.tool)}</strong>
+                  <span class="timeline-badge ${isBlocked ? 'red' : 'green'}">${escapeHtml(t.guard_action)}</span>
+                </div>
+                <div class="timeline-args" style="font-size: 10px;">args: ${escapeHtml(JSON.stringify(t.args))}</div>
+                <div class="timeline-reason" style="font-size: 9.5px;">${escapeHtml(t.reason || 'Permitted')} &bull; result: ${escapeHtml(t.result)}</div>
+              </div>
+            `;
+          }).join('')}
+
+          <div style="font-size: 11px; font-weight: 600; margin: 6px 0 2px 0; color: var(--text-secondary);">Agent Final Response:</div>
+          <div style="background: var(--bg-tertiary); padding: 6px 8px; border-radius: 4px; font-family: var(--font-mono); font-size: 10.5px; white-space: pre-wrap;">${escapeHtml(run.final_response)}</div>
+        </div>
+      `;
+    });
+
+    return html;
+  }
+
+  if (unprotBody) unprotBody.innerHTML = renderSideHtml(unprotData, false);
+  if (protBody) protBody.innerHTML = renderSideHtml(protData, true);
 }
 
 // ---------------------------------------------------------------------------

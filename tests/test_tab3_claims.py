@@ -57,7 +57,7 @@ def test_metric_correct_recall_conditioned_on_flagged():
         carrier="email",
         technique="direct",
         is_attack=True,
-        attack_types=["INDIRECT_PROMPT_INJECTION"],
+        attack_types=["INSTRUCTION_OVERRIDE"],
     )
     # Verdict allows it, but internal category score was high
     v_allow = Verdict(
@@ -67,15 +67,15 @@ def test_metric_correct_recall_conditioned_on_flagged():
         action="ALLOW",
         risk=0.1,
         content_sha256="abc",
-        category_scores={AttackType.INDIRECT_PROMPT_INJECTION: 0.8},
-        detected=[AttackType.INDIRECT_PROMPT_INJECTION],
+        category_scores={AttackType.INSTRUCTION_OVERRIDE: 0.8},
+        detected=[AttackType.INSTRUCTION_OVERRIDE],
     )
     eval_item = evaluate_item(item_unflagged, v_allow)
     assert eval_item.flagged is False
     assert eval_item.category_correct is False  # Cannot be correct if not flagged!
 
     metrics = compute_all_metrics([eval_item])
-    cat_metrics = metrics["categories"]["INDIRECT_PROMPT_INJECTION"]
+    cat_metrics = metrics["categories"]["INSTRUCTION_OVERRIDE"]
     assert cat_metrics["flagged_recall"] == 0.0
     assert cat_metrics["category_correct_recall"] == 0.0
     # Legacy unconditioned metric records the old unconditioned value

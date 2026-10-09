@@ -6,6 +6,7 @@ Extracts visible text, isolates HTML comments, detects hidden CSS/DOM nodes
 
 import re
 from html.parser import HTMLParser
+import html
 from typing import Dict, Any, List
 from aegis_firewall.models import ParsedContent, InputSource
 
@@ -68,7 +69,9 @@ class DOMInspector(HTMLParser):
             self.is_hidden_stack.pop()
 
     def handle_data(self, data):
-        cleaned = data.strip()
+        data = html.unescape(data)
+        # Remove zero-width characters and bidi overrides
+        cleaned = re.sub(r'[\u200b-\u200f\ufeff\u202a-\u202e]', '', data).strip()
         if not cleaned:
             return
             

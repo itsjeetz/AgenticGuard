@@ -1,0 +1,15 @@
+{
+  "benchmark_version": "1.0",
+  "benchmark_split": "test",
+  "split_items_count": 196,
+  "dataset_checksum_sha256": "c9721c9e17077e1b70a3ff55a5e3b084e080773a54d45c00e08afe5acd02ed0d",
+  "frozen_test_sha256": "c9721c9e17077e1b70a3ff55a5e3b084e080773a54d45c00e08afe5acd02ed0d",
+  "frozen_test_intact": true,
+  "evaluation_mode": "full_cascade",
+  "provider_mix": "groq_1 (2), groq_2 (9), rules_only (185)",
+  "model_mix": "llama-3.3-70b-versatile / gemini-3.5-flash / heuristics",
+  "llm_evaluated_share": 0.0,
+  "validity_gate_passed": false,
+  "generation_timestamp": "2026-10-09T03:33:39.169541+00:00",
+  "git_commit": "ba828a7-dirty"
+}

@@ -230,6 +230,20 @@ async def serve_index_html():
     )
 
 
+@app.get("/evidence", response_class=HTMLResponse)
+async def serve_evidence():
+    """Hidden read-only route rendering latest saved evaluation report (§Q&A reference)."""
+    from server.evidence_view import render_evidence_html
+    return HTMLResponse(
+        content=render_evidence_html(),
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
+    )
+
+
 # Mount /static directory with DevStaticFiles (no-store headers)
 if STATIC_DIR.exists():
     app.mount("/static", DevStaticFiles(directory=str(STATIC_DIR)), name="static_dir")

@@ -28,7 +28,7 @@ def test_pdf_with_text_layer_injection_detected():
     # Assert the firewall flags or blocks the injection
     assert verdict.action != "ALLOW"
     assert verdict.risk >= 0.70
-    assert AttackType.INSTRUCTION_OVERRIDE in verdict.category_scores or AttackType.INDIRECT_PROMPT_INJECTION in verdict.category_scores
+    assert AttackType.INSTRUCTION_OVERRIDE in verdict.category_scores
 
 
 def test_pdf_with_hidden_white_text_injection_detected():
