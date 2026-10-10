@@ -36,7 +36,6 @@ def get_health() -> HealthResponse:
     from aegis.judge_llm import get_llm_judge
 
     ocr_avail = is_ocr_available()
-    api_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
     demo_active = is_demo_mode()
     demo_mgr = get_demo_manager()
 
@@ -47,16 +46,20 @@ def get_health() -> HealthResponse:
     quota_exhausted = llm_rem <= 0 and demo_active
     rate_limit = DEFAULT_GENERAL_LIMIT_PER_MINUTE
 
-    gemini_1_key = bool(os.environ.get("GEMINI_API_KEY", "").strip())
-    gemini_2_key = bool(os.environ.get("GEMINI_API_KEY_2", "").strip())
-    gemini_key_set = gemini_1_key or gemini_2_key
-    gemini_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    llm_judge = get_llm_judge()
+    configs = llm_judge.get_provider_configs()
+    groq_model = configs.get("groq_1", configs.get("groq")).model
+    gemini_model = configs.get("gemini_1", configs.get("gemini")).model
+
+    gemini_key_set = bool(
+        (configs.get("gemini_1") and configs["gemini_1"].api_key)
+        or (configs.get("gemini_2") and configs["gemini_2"].api_key)
+    )
     gemini_avail = gemini_key_set and (not quota_exhausted)
 
-    llm_judge = get_llm_judge()
     configured_providers = llm_judge.get_configured_providers()
     provider_states = llm_judge.get_provider_states()
-    judge_avail = (len(configured_providers) > 0 or api_key_set or gemini_key_set) and (not quota_exhausted)
+    judge_avail = (len(configured_providers) > 0) and (not quota_exhausted)
 
     # llm_judge_status is "ok (<provider>)" ONLY after a real successful call
     if llm_judge.last_provider and llm_judge.last_status and llm_judge.last_status.startswith("ok"):
@@ -70,10 +73,6 @@ def get_health() -> HealthResponse:
         llm_status = "fallback:rules_only"
 
     clf_backend = get_classifier_backend()
-    judge_model = gemini_model if gemini_key_set else os.environ.get("JUDGE_MODEL", "claude-haiku-4-5-20251001")
-    agent_model = gemini_model if gemini_key_set else os.environ.get("AGENT_MODEL", "claude-sonnet-5")
-    hf_id = os.environ.get("HF_CLASSIFIER_ID")
-
     degraded = not ocr_avail or not judge_avail
 
     from eval.report import get_git_commit
@@ -86,13 +85,10 @@ def get_health() -> HealthResponse:
         ocr_available=ocr_avail,
         classifier_backend=clf_backend,
         judge_available=judge_avail,
-        anthropic_key_set=api_key_set,
-        judge_model=judge_model,
-        agent_model=agent_model,
+        groq_model=groq_model,
         gemini_key_set=gemini_key_set,
         gemini_available=gemini_avail,
         gemini_model=gemini_model,
-        hf_classifier_id=hf_id,
         degraded_mode=degraded,
         demo_mode=demo_active,
         rate_limit_per_minute=rate_limit,
@@ -105,4 +101,18 @@ def get_health() -> HealthResponse:
         llm_providers_configured=configured_providers,
         providers=provider_states,
     )
+
+
+@router.post("/llm/retest")
+def retest_llm_providers():
+    """Retest all configured LLM providers making one tiny real call per provider."""
+    from aegis.judge_llm import get_llm_judge
+
+    llm_judge = get_llm_judge()
+    results = llm_judge.retest_all_providers()
+    return {
+        "status": "ok",
+        "results": results,
+        "footer_label": llm_judge.get_footer_label(),
+    }
 

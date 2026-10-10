@@ -1,8 +1,17 @@
 """Playwright UI flow test for Tab 2 Custom-content mode (§7, §10, §12)."""
 
 import os
+import urllib.request
 from pathlib import Path
+import pytest
 from playwright.sync_api import sync_playwright
+
+def is_server_available():
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=1.5) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
 
 ARTIFACTS_DIR = Path(r"C:\Users\Jeet Das\.gemini\antigravity-ide\brain\9138a584-fe03-4cc2-8418-a4400fd29f21")
 REPO_SCREENSHOTS_DIR = Path("screenshots")
@@ -13,6 +22,9 @@ DEMO_DATA_DIR = Path("demo_data/custom_scenarios").resolve()
 
 
 def test_custom_sandbox_playwright_flow():
+    if not is_server_available():
+        pytest.skip("Live server is not running on http://127.0.0.1:8000; skipping Playwright test.")
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={"width": 1440, "height": 950})

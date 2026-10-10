@@ -8,11 +8,8 @@ from pathlib import Path
 root_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(root_dir))
 
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except ImportError:
-    pass
+from aegis.env import load_environment
+load_environment(override=True)
 
 
 def check_gemini() -> bool:

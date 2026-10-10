@@ -9,10 +9,10 @@ import sys
 import time
 from typing import Any
 
-from dotenv import load_dotenv
+from aegis.env import load_environment
 
 # Ensure environment variables are loaded
-load_dotenv()
+load_environment(override=True)
 
 from aegis.judge_llm import get_llm_judge
 from aegis.models import InputSource

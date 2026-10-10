@@ -95,6 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initEvalTab();
   initAuditTab();
   initPolicyTab();
+  initRetestLlm();
 });
 
 // ---------------------------------------------------------------------------
@@ -219,7 +220,9 @@ async function initDemoBanner() {
     }
 
     // Update LLM Judge footer status tag
-    if (data.llm_judge_provider && !data.llm_judge_provider.startsWith("fallback")) {
+    if (data.footer_label) {
+      updateLlmJudgeFooter(data.footer_label);
+    } else if (data.llm_judge_provider && !data.llm_judge_provider.startsWith("fallback")) {
       updateLlmJudgeFooter(data.llm_judge_provider);
     } else if (data.llm_judge_status) {
       updateLlmJudgeFooter(data.llm_judge_status);
@@ -229,20 +232,139 @@ async function initDemoBanner() {
   }
 }
 
-function updateLlmJudgeFooter(providerOrStatus, reason) {
+function updateLlmJudgeFooter(label) {
   const footerTag = el("footerLlmJudge");
   if (!footerTag) return;
-  if (!providerOrStatus) {
-    footerTag.textContent = "LLM judge: fallback (rules_only)";
+  if (!label) {
+    footerTag.textContent = "LLM: rules only";
+    footerTag.className = "llm-judge-tag fallback";
     return;
   }
-  if (providerOrStatus.startsWith("ok") || providerOrStatus.startsWith("cached")) {
-    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
-  } else if (providerOrStatus.startsWith("fallback")) {
-    const r = reason ? ` (${reason})` : (providerOrStatus.includes(":") ? ` (${providerOrStatus.split(":")[1]})` : "");
-    footerTag.textContent = `LLM judge: fallback${r}`;
+  footerTag.textContent = label;
+  const s = String(label).toLowerCase();
+  if (s.includes("rules only") || s.includes("fallback") || s.includes("degraded") || s.includes("cooling")) {
+    footerTag.className = "llm-judge-tag fallback";
+  } else if (s.includes("groq") || s.includes("gemini") || s.startsWith("ok")) {
+    footerTag.className = "llm-judge-tag active";
   } else {
-    footerTag.textContent = `LLM judge: ${providerOrStatus}`;
+    footerTag.className = "llm-judge-tag";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// RETEST LLM MODAL & TRIGGER (§2)
+// ---------------------------------------------------------------------------
+function initRetestLlm() {
+  const btnRetest = el("btnRetestLlm");
+  const modalOverlay = el("modalRetestOverlay");
+  const modalClose = el("modalRetestClose");
+  const modalDismiss = el("modalRetestDismiss");
+  const modalBody = el("modalRetestBody");
+  const modalSummary = el("modalRetestSummary");
+
+  function closeModal() {
+    if (modalOverlay) modalOverlay.style.display = "none";
+  }
+
+  if (modalClose) modalClose.addEventListener("click", closeModal);
+  if (modalDismiss) modalDismiss.addEventListener("click", closeModal);
+  if (modalOverlay) {
+    modalOverlay.addEventListener("click", (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+  }
+
+  if (btnRetest) {
+    btnRetest.addEventListener("click", async () => {
+      btnRetest.classList.add("loading");
+      const textSpan = btnRetest.querySelector(".btn-text");
+      if (textSpan) textSpan.textContent = "Testing...";
+      showToast("Testing all LLM providers (1 tiny call each)...");
+
+      try {
+        const res = await fetch("/api/llm/retest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        const data = await res.json();
+        const results = data.results || {};
+
+        if (data.footer_label) {
+          updateLlmJudgeFooter(data.footer_label);
+        }
+
+        // Render results in modal table
+        let tableHtml = `
+          <table class="retest-table">
+            <thead>
+              <tr>
+                <th>Provider</th>
+                <th>Status</th>
+                <th>Classification</th>
+                <th>When to Retry</th>
+                <th>Latency</th>
+                <th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        let okCount = 0;
+        let totalCount = 0;
+
+        for (const [key, p] of Object.entries(results)) {
+          if (!p.configured) {
+            tableHtml += `
+              <tr>
+                <td><strong>${p.display_name || key}</strong><br><small style="color:var(--text-muted)">Unconfigured</small></td>
+                <td><span class="badge-status badge-unconf">-</span></td>
+                <td><span style="color:var(--text-muted)">not configured</span></td>
+                <td>-</td>
+                <td>-</td>
+                <td><span style="color:var(--text-muted)">No API key provided</span></td>
+              </tr>
+            `;
+            continue;
+          }
+
+          totalCount++;
+          let badgeClass = "badge-ok";
+          const cls = p.classification || "ok";
+          if (cls === "key invalid") badgeClass = "badge-invalid";
+          else if (cls === "per-minute limit") badgeClass = "badge-minute";
+          else if (cls === "per-day limit") badgeClass = "badge-daily";
+          else if (cls === "network") badgeClass = "badge-network";
+          else if (p.status_code === 200) okCount++;
+
+          tableHtml += `
+            <tr>
+              <td>
+                <strong>${p.display_name || key}</strong><br>
+                <code style="font-size:0.75rem; color:#c084fc;">${p.masked_key || ''}</code>
+              </td>
+              <td><span class="badge-status ${badgeClass}">HTTP ${p.status_code}</span></td>
+              <td><strong style="text-transform: capitalize;">${cls}</strong></td>
+              <td><span style="color: #fbbf24; font-family: var(--font-mono); font-size: 0.8rem;">${p.when_to_retry || '-'}</span></td>
+              <td>${p.latency_ms ? p.latency_ms + ' ms' : '-'}</td>
+              <td><small style="color: var(--text-secondary); word-break: break-word;">${p.details || p.last_error || 'OK'}</small></td>
+            </tr>
+          `;
+        }
+
+        tableHtml += `</tbody></table>`;
+        if (modalBody) modalBody.innerHTML = tableHtml;
+        if (modalSummary) {
+          modalSummary.textContent = `${okCount}/${totalCount} providers operational • ${data.footer_label || ''}`;
+        }
+        if (modalOverlay) modalOverlay.style.display = "flex";
+        showToast(`Retest completed: ${okCount}/${totalCount} operational`);
+      } catch (err) {
+        showToast(`Retest failed: ${err.message}`, true);
+      } finally {
+        btnRetest.classList.remove("loading");
+        if (textSpan) textSpan.textContent = "Retest LLM";
+      }
+    });
   }
 }
 

@@ -5,14 +5,18 @@ import re
 import socket
 import sys
 
-from dotenv import load_dotenv
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from aegis.env import load_environment
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-# Load environment variables early from .env
-load_dotenv()
+# Load environment variables early with override=True
+load_environment(override=True)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = PROJECT_ROOT / "static"

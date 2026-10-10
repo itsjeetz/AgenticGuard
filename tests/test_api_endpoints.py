@@ -23,10 +23,9 @@ def test_health_reports_capabilities_and_mock_status(client):
     assert "ocr_available" in data
     assert "classifier_backend" in data
     assert "judge_available" in data
-    assert "anthropic_key_set" in data
-    assert "agent_model" in data
-    # When no key is set, anthropic_key_set must be False (degrade gracefully, §0 Rule 2)
-    assert isinstance(data["anthropic_key_set"], bool)
+    assert "groq_model" in data
+    assert "gemini_model" in data
+    assert isinstance(data["gemini_available"], bool)
 
 
 def test_inspector_endpoints_json_and_multipart(client):

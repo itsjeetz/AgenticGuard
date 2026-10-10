@@ -17,9 +17,8 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from dotenv import load_dotenv
-
-load_dotenv()
+from aegis.env import load_environment
+load_environment(override=True)
 
 from aegis.judge_llm import ProviderAgnosticJudge, get_llm_judge, mask_key
 

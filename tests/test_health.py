@@ -16,8 +16,8 @@ def test_health_endpoint():
     assert "version" in data
     assert "ocr_available" in data
     assert isinstance(data["ocr_available"], bool)
-    assert "anthropic_key_set" in data
-    assert isinstance(data["anthropic_key_set"], bool)
+    assert "groq_model" in data
+    assert "gemini_model" in data
     assert "judge_available" in data
     assert isinstance(data["judge_available"], bool)
     assert "classifier_backend" in data
@@ -26,16 +26,16 @@ def test_health_endpoint():
 
 
 def test_health_reflects_env(monkeypatch):
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-12345")
+    monkeypatch.setenv("GROQ_API_KEY", "test-groq-key-1234")
     response = client.get("/api/health")
     assert response.status_code == 200
     data = response.json()
-    assert data["anthropic_key_set"] is True
+    assert data["providers"]["groq_1"]["configured"] is True
     assert data["judge_available"] is True
 
 
 def test_health_per_provider_state_and_judge_status(monkeypatch):
-    """Verify /api/health lists all four providers and llm_judge_status is ok only after real call."""
+    """Verify /api/health lists all four providers, no duplicate aggregates, and llm_judge_status is ok only after real call."""
     from aegis.judge_llm import get_llm_judge
     judge = get_llm_judge()
     judge.reset_session_state()
@@ -56,6 +56,9 @@ def test_health_per_provider_state_and_judge_status(monkeypatch):
     assert "groq_2" in providers
     assert "gemini_1" in providers
     assert "gemini_2" in providers
+    # Duplicate aggregate entries must be removed (§4)
+    assert "groq" not in providers
+    assert "gemini" not in providers
 
     # Verify per-provider schema across all 4 providers
     for p_name in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
@@ -66,6 +69,9 @@ def test_health_per_provider_state_and_judge_status(monkeypatch):
         assert "last_error" in st
         assert "last_latency_ms" in st
         assert "cooldown_seconds_remaining" in st
+        assert "state" in st
+        assert "learned_limits" in st
+        assert "model" in st
 
     assert providers["groq_1"]["configured"] is True
     assert providers["groq_1"]["masked_key"] == "...1234"

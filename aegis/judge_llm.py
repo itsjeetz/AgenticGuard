@@ -12,7 +12,8 @@ and graceful zero-crash fallback.
 """
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 import hashlib
 import json
 import logging
@@ -24,6 +25,11 @@ import time
 from typing import Any, Optional
 import urllib.error
 import urllib.request
+
+from aegis.env import load_environment
+
+# Ensure environment variables are loaded with override=True
+load_environment(override=True)
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -131,6 +137,60 @@ def mask_key(key: str) -> str:
     return f"...{stripped[-4:]}"
 
 
+def get_key_hash(key: Optional[str]) -> str:
+    """Masked/hashed identity of an API key for state tracking (§Secrets)."""
+    if not key or not str(key).strip():
+        return ""
+    return hashlib.sha256(str(key).strip().encode("utf-8")).hexdigest()[:16]
+
+
+def seconds_until_midnight_pacific() -> float:
+    """Calculate seconds until next midnight in US Pacific Time (midnight PT)."""
+    now_utc = datetime.now(timezone.utc)
+    # Pacific Daylight Time (PDT) is UTC-7 in October
+    pt_offset = timezone(timedelta(hours=-7))
+    now_pt = now_utc.astimezone(pt_offset)
+    tomorrow_pt = (now_pt + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    diff = (tomorrow_pt - now_pt).total_seconds()
+    return max(60.0, diff)
+
+
+def format_seconds_remaining(seconds: float) -> str:
+    """Format seconds remaining as human-readable string like '5 h', '12 m', '45 s'."""
+    sec = max(0.0, float(seconds))
+    if sec >= 3600:
+        h = int(round(sec / 3600))
+        return f"{h} h"
+    elif sec >= 60:
+        m = int(round(sec / 60))
+        return f"{m} m"
+    else:
+        s = int(round(sec))
+        return f"{s} s"
+
+
+@dataclass
+class KeyState:
+    """Per-key state tracking to ensure changed keys start clean after reload (§State)."""
+    key_hash: str
+    state: str = "clean"  # "clean", "ok", "cooldown", "exhausted", "invalid", "error"
+    auth_failure_until: float = 0.0
+    cooldown_until: float = 0.0
+    is_daily_exhausted: bool = False
+    daily_reset_epoch: float = 0.0
+    daily_reason: str = ""
+    group_id: Optional[str] = None
+    last_error: Optional[str] = None
+    last_call_ok: bool = False
+    last_latency_ms: float = 0.0
+    learned_limits: dict[str, Any] = field(default_factory=lambda: {
+        "rpm": {"limit": None, "remaining": None},
+        "rpd": {"limit": None, "remaining": None},
+        "tpm": {"limit": None, "remaining": None},
+        "tpd": {"limit": None, "remaining": None},
+    })
+
+
 def parse_groq_reset_duration(val: str) -> float:
     """Parse Groq reset duration like '6m0s', '2s', '250ms' into seconds."""
     if not val:
@@ -157,6 +217,62 @@ def parse_groq_reset_duration(val: str) -> float:
     return total
 
 
+class CooldownProxyDict(dict):
+    """Dictionary proxying to KeyState and group cooldowns for backward compatibility."""
+
+    def __init__(self, judge: "ProviderAgnosticJudge"):
+        super().__init__()
+        self._judge = judge
+
+    def get(self, key: str, default: float = 0.0) -> float:
+        val = self._judge.get_provider_cooldown_until(key)
+        return val if val > 0.0 else default
+
+    def __getitem__(self, key: str) -> float:
+        return self._judge.get_provider_cooldown_until(key)
+
+    def __setitem__(self, key: str, value: float) -> None:
+        super().__setitem__(key, value)
+        self._judge.set_provider_cooldown(key, value)
+
+    def clear(self) -> None:
+        super().clear()
+        self._judge._clear_all_cooldowns()
+
+    def __contains__(self, key: object) -> bool:
+        if isinstance(key, str):
+            return self._judge.get_provider_cooldown_until(key) > time.time()
+        return False
+
+
+class AuthFailureProxyDict(dict):
+    """Dictionary proxying to KeyState auth failures for backward compatibility."""
+
+    def __init__(self, judge: "ProviderAgnosticJudge"):
+        super().__init__()
+        self._judge = judge
+
+    def get(self, key: str, default: float = 0.0) -> float:
+        val = self._judge.get_provider_auth_failure_until(key)
+        return val if val > 0.0 else default
+
+    def __getitem__(self, key: str) -> float:
+        return self._judge.get_provider_auth_failure_until(key)
+
+    def __setitem__(self, key: str, value: float) -> None:
+        super().__setitem__(key, value)
+        self._judge.set_provider_auth_failure(key, value)
+
+    def clear(self) -> None:
+        super().clear()
+        self._judge._clear_all_auth_failures()
+
+    def __contains__(self, key: object) -> bool:
+        if isinstance(key, str):
+            return self._judge.get_provider_auth_failure_until(key) > time.time()
+        return False
+
+
 class ProviderAgnosticJudge:
     """Multi-provider LLM Judge calling OpenAI-compatible /chat/completions endpoints."""
 
@@ -166,14 +282,21 @@ class ProviderAgnosticJudge:
         self.last_provider: Optional[str] = None
         self.last_error: Optional[str] = None
 
-        # Auth failure timestamps (401/403): retries every 5 minutes (300s)
-        self._auth_failure_until: dict[str, float] = {}
+        # Key-hashed states ensuring key changes start clean
+        self._key_states: dict[str, KeyState] = {}
 
-        # Cooldown timestamps: on 429 or rate limits
-        self._provider_cooldown_until: dict[str, float] = {}
+        # Group-level cooldown and exhaustion tracking (shared org/project)
+        self._group_cooldown_until: dict[str, float] = {}
+        self._group_exhausted_until: dict[str, float] = {}
+        self._group_members: dict[str, set[str]] = defaultdict(set)
+        self._group_reasons: dict[str, str] = {}
 
         # Groq 429 tracking across keys to detect shared rate limits
         self._groq_429_history: dict[str, float] = {}
+
+        # Backward compatibility proxy dictionaries
+        self._auth_failure_until = AuthFailureProxyDict(self)
+        self._provider_cooldown_until = CooldownProxyDict(self)
 
         # Per-provider runtime state for /api/health and check_llm diagnostics
         self._provider_states: dict[str, dict[str, Any]] = {
@@ -201,7 +324,7 @@ class ProviderAgnosticJudge:
                 "last_call_ok": False,
                 "last_error": None,
                 "last_latency_ms": 0.0,
-                "model": "gemini-2.5-flash",
+                "model": "gemini-3.5-flash",
                 "masked_key": None,
             },
             "gemini_2": {
@@ -210,10 +333,108 @@ class ProviderAgnosticJudge:
                 "last_call_ok": False,
                 "last_error": None,
                 "last_latency_ms": 0.0,
-                "model": "gemini-2.5-flash",
+                "model": "gemini-3.5-flash",
                 "masked_key": None,
             },
         }
+
+    def _get_key_state(self, key_hash: str) -> KeyState:
+        """Fetch or initialize KeyState for a key hash."""
+        if not key_hash:
+            return KeyState(key_hash="")
+        if key_hash not in self._key_states:
+            self._key_states[key_hash] = KeyState(key_hash=key_hash)
+        return self._key_states[key_hash]
+
+    def get_provider_auth_failure_until(self, provider: str) -> float:
+        """Retrieve auth failure expiration timestamp for provider."""
+        canonical = "groq_1" if provider == "groq" else ("gemini_1" if provider == "gemini" else provider)
+        configs = self.get_provider_configs()
+        cfg = configs.get(canonical)
+        if not cfg or not cfg.api_key:
+            return 0.0
+        kh = get_key_hash(cfg.api_key)
+        st = self._get_key_state(kh)
+        return st.auth_failure_until
+
+    def set_provider_auth_failure(self, provider: str, value: float) -> None:
+        """Set auth failure timestamp for provider's current key."""
+        canonical = "groq_1" if provider == "groq" else ("gemini_1" if provider == "gemini" else provider)
+        configs = self.get_provider_configs()
+        cfg = configs.get(canonical)
+        if cfg and cfg.api_key:
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            st.auth_failure_until = value
+            st.state = "invalid"
+
+    def _clear_all_auth_failures(self) -> None:
+        """Clear all auth failures."""
+        for st in self._key_states.values():
+            st.auth_failure_until = 0.0
+
+    def get_provider_cooldown_until(self, provider: str) -> float:
+        """Retrieve cooldown or daily exhaustion expiration timestamp for provider."""
+        canonical = "groq_1" if provider == "groq" else ("gemini_1" if provider == "gemini" else provider)
+        configs = self.get_provider_configs()
+        cfg = configs.get(canonical)
+        if not cfg or not cfg.api_key:
+            return 0.0
+        kh = get_key_hash(cfg.api_key)
+        st = self._get_key_state(kh)
+        now = time.time()
+        cd = 0.0
+        if st.is_daily_exhausted and st.daily_reset_epoch > now:
+            cd = max(cd, st.daily_reset_epoch)
+        if st.cooldown_until > now:
+            cd = max(cd, st.cooldown_until)
+        if st.group_id:
+            grp_ex = self._group_exhausted_until.get(st.group_id, 0.0)
+            grp_cd = self._group_cooldown_until.get(st.group_id, 0.0)
+            if grp_ex > now:
+                cd = max(cd, grp_ex)
+            if grp_cd > now:
+                cd = max(cd, grp_cd)
+        return cd
+
+    def set_provider_cooldown(self, provider: str, value: float) -> None:
+        """Set cooldown timestamp for provider's current key."""
+        canonical = "groq_1" if provider == "groq" else ("gemini_1" if provider == "gemini" else provider)
+        configs = self.get_provider_configs()
+        cfg = configs.get(canonical)
+        if cfg and cfg.api_key:
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            st.cooldown_until = value
+
+    def set_provider_exhausted(self, provider: str, reset_epoch: float, reason: str = "") -> None:
+        """Set daily exhaustion timestamp and reason for provider's key."""
+        canonical = "groq_1" if provider == "groq" else ("gemini_1" if provider == "gemini" else provider)
+        configs = self.get_provider_configs()
+        cfg = configs.get(canonical)
+        if cfg and cfg.api_key:
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            st.is_daily_exhausted = True
+            st.daily_reset_epoch = reset_epoch
+            st.daily_reason = reason
+            st.state = "exhausted"
+
+    def set_group_exhausted(self, group_id: str, reset_epoch: float, reason: str = "") -> None:
+        """Set group-level daily exhaustion."""
+        self._group_exhausted_until[group_id] = reset_epoch
+        self._group_reasons[group_id] = reason
+
+    def _clear_all_cooldowns(self) -> None:
+        """Clear all cooldowns across keys and groups."""
+        for st in self._key_states.values():
+            st.cooldown_until = 0.0
+            st.is_daily_exhausted = False
+            st.daily_reset_epoch = 0.0
+        self._group_cooldown_until.clear()
+        self._group_exhausted_until.clear()
+        self._group_reasons.clear()
+        self._groq_429_history.clear()
 
     def get_provider_configs(self) -> dict[str, ProviderConfig]:
         """Load provider configurations from environment variables, supporting flexible aliases."""
@@ -272,33 +493,25 @@ class ProviderAgnosticJudge:
         groq_base_2 = os.environ.get("GROQ_BASE_URL_2", groq_base_1).rstrip("/")
 
         # Flexible key aliases
-        groq_key_1 = (
-            os.environ.get("GROQ_API_KEY")
-            or os.environ.get("GROQ_KEY")
-            or os.environ.get("GROQ_API_KEY_1")
-            or ""
-        ).strip()
+        if "GROQ_API_KEY" in os.environ:
+            groq_key_1 = os.environ["GROQ_API_KEY"].strip()
+        else:
+            groq_key_1 = (os.environ.get("GROQ_API_KEY_1") or os.environ.get("GROQ_KEY") or "").strip()
 
-        groq_key_2 = (
-            os.environ.get("GROQ_API_KEY_2")
-            or os.environ.get("GROQ_KEY_2")
-            or ""
-        ).strip()
+        if "GROQ_API_KEY_2" in os.environ:
+            groq_key_2 = os.environ["GROQ_API_KEY_2"].strip()
+        else:
+            groq_key_2 = (os.environ.get("GROQ_KEY_2") or "").strip()
 
-        gemini_key_1 = (
-            os.environ.get("GEMINI_API_KEY")
-            or os.environ.get("GOOGLE_API_KEY")
-            or os.environ.get("GEMINI_KEY")
-            or os.environ.get("GEMINI_API_KEY_1")
-            or ""
-        ).strip()
+        if "GEMINI_API_KEY" in os.environ:
+            gemini_key_1 = os.environ["GEMINI_API_KEY"].strip()
+        else:
+            gemini_key_1 = (os.environ.get("GEMINI_API_KEY_1") or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_KEY") or "").strip()
 
-        gemini_key_2 = (
-            os.environ.get("GEMINI_API_KEY_2")
-            or os.environ.get("GOOGLE_API_KEY_2")
-            or os.environ.get("GEMINI_KEY_2")
-            or ""
-        ).strip()
+        if "GEMINI_API_KEY_2" in os.environ:
+            gemini_key_2 = os.environ["GEMINI_API_KEY_2"].strip()
+        else:
+            gemini_key_2 = (os.environ.get("GOOGLE_API_KEY_2") or os.environ.get("GEMINI_KEY_2") or "").strip()
 
         configs = {
             "groq_1": ProviderConfig(
@@ -414,44 +627,110 @@ class ProviderAgnosticJudge:
         return available
 
     def get_provider_states(self) -> dict[str, dict[str, Any]]:
-        """Return snapshot of per-provider status for /api/health and diagnostics."""
+        """Return snapshot of per-provider status for /api/health and diagnostics (§10)."""
         configs = self.get_provider_configs()
         now = time.time()
         result = {}
         for p in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
             cfg = configs.get(p)
-            base_state = dict(self._provider_states.get(p, {}))
-            if cfg:
-                base_state["configured"] = bool(cfg.api_key) and (now >= self._auth_failure_until.get(p, 0.0))
-                base_state["model"] = cfg.model
-                base_state["masked_key"] = mask_key(cfg.api_key) if cfg.api_key else None
-                cooldown_until = self._provider_cooldown_until.get(p, 0.0)
-                if cooldown_until > now:
-                    base_state["cooldown_seconds_remaining"] = round(cooldown_until - now, 1)
-                else:
-                    base_state["cooldown_seconds_remaining"] = 0.0
-                if now < self._auth_failure_until.get(p, 0.0):
-                    base_state["auth_cooldown_seconds_remaining"] = round(self._auth_failure_until[p] - now, 1)
-            result[p] = base_state
-        # Backward compatibility aliases
-        result["groq"] = result["groq_1"]
-        result["gemini"] = result["gemini_1"]
+            if not cfg or not cfg.api_key:
+                result[p] = {
+                    "configured": False,
+                    "reachable": False,
+                    "last_call_ok": False,
+                    "last_error": None,
+                    "last_latency_ms": 0.0,
+                    "model": cfg.model if cfg else "",
+                    "masked_key": None,
+                    "state": "unconfigured",
+                    "reset_time": None,
+                    "cooldown_seconds_remaining": 0.0,
+                    "learned_limits": {
+                        "rpm": {"limit": None, "remaining": None},
+                        "rpd": {"limit": None, "remaining": None},
+                        "tpm": {"limit": None, "remaining": None},
+                        "tpd": {"limit": None, "remaining": None},
+                    },
+                    "shared_limit_with": [],
+                    "group_id": None,
+                }
+                continue
+
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            masked = mask_key(cfg.api_key)
+
+            # Calculate effective cooldown
+            cd_until = self.get_provider_cooldown_until(p)
+            cd_rem = max(0.0, cd_until - now)
+
+            # Check shared limit partners
+            shared_with = []
+            if st.group_id and len(self._group_members.get(st.group_id, set())) > 1:
+                shared_with = sorted(list(self._group_members[st.group_id] - {p}))
+            elif p in ("groq_1", "groq_2"):
+                other = "groq_2" if p == "groq_1" else "groq_1"
+                if "groq_shared_org" in self._group_members and other in self._group_members["groq_shared_org"]:
+                    shared_with = [other]
+
+            # Determine provider state and formatted reset time
+            if now < st.auth_failure_until:
+                prov_state = "invalid"
+                reset_str = f"in {format_seconds_remaining(st.auth_failure_until - now)}"
+                rem_val = round(st.auth_failure_until - now, 1)
+                err = st.last_error or f"Auth failed: Invalid key ({masked})"
+            elif (st.is_daily_exhausted or (st.group_id and self._group_exhausted_until.get(st.group_id, 0.0) > now)) and cd_rem > 0:
+                prov_state = "exhausted"
+                reset_str = f"resets in {format_seconds_remaining(cd_rem)}"
+                rem_val = round(cd_rem, 1)
+                err = st.last_error or ("Daily token limit reached" if "groq" in p else "Daily request limit reached")
+            elif cd_rem > 0:
+                prov_state = "cooldown"
+                reset_str = f"resets in {format_seconds_remaining(cd_rem)}"
+                rem_val = round(cd_rem, 1)
+                err = st.last_error or "Rate limited"
+            else:
+                prov_state = "configured"
+                reset_str = None
+                rem_val = 0.0
+                err = None
+
+            legacy_st = self._provider_states.get(p, {})
+            last_call_ok = bool(st.last_call_ok or legacy_st.get("last_call_ok", False))
+            last_latency_ms = st.last_latency_ms or legacy_st.get("last_latency_ms", 0.0)
+
+            if last_call_ok and prov_state == "configured":
+                prov_state = "ok"
+
+            result[p] = {
+                "configured": True,
+                "reachable": prov_state not in ("error",),
+                "last_call_ok": last_call_ok,
+                "last_error": err,
+                "last_latency_ms": last_latency_ms,
+                "model": cfg.model,
+                "masked_key": masked,
+                "state": prov_state,
+                "reset_time": reset_str,
+                "cooldown_seconds_remaining": rem_val,
+                "learned_limits": st.learned_limits,
+                "shared_limit_with": shared_with,
+                "group_id": st.group_id,
+            }
+
         return result
 
     def get_footer_label(self) -> str:
-        """Generate human-readable footer status string for UI display (§Display)."""
+        """Generate human-readable footer status string with reason and reset time (§Display)."""
         now = time.time()
-        groq_1_cd = max(0.0, self._provider_cooldown_until.get("groq_1", 0.0) - now)
-        groq_2_cd = max(0.0, self._provider_cooldown_until.get("groq_2", 0.0) - now)
+        configs = self.get_provider_configs()
+
+        now = time.time()
+        groq_1_cd = max(0.0, self.get_provider_cooldown_until("groq_1") - now)
+        groq_2_cd = max(0.0, self.get_provider_cooldown_until("groq_2") - now)
         groq_cooling = max(groq_1_cd, groq_2_cd)
 
-        # If last call failed to fallback:rules_only, display degraded rules-only state
-        if self.last_status and self.last_status.startswith("fallback"):
-            if groq_cooling > 0:
-                return f"LLM: Rules only (Groq cooling down {int(groq_cooling)} s)"
-            return "LLM: Rules only (amber degraded)"
-
-        # Check last call if active
+        # Check last successful call
         if self.last_provider and self.last_status and self.last_status.startswith("ok"):
             p = self.last_provider
             if p == "groq_1":
@@ -466,32 +745,54 @@ class ProviderAgnosticJudge:
             else:
                 return f"LLM: {p}"
 
-        # If standby (no calls made yet), determine the first eligible healthy provider
-        configs = self.get_provider_configs()
-        order = self.resolve_provider_order()
-        for p in order:
+        # 1. Check daily exhaustions first (priority to show why fallback is active and reset time)
+        for p in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
             cfg = configs.get(p)
             if not cfg or not cfg.api_key:
                 continue
-            if self._auth_failure_until.get(p, 0.0) > now:
-                continue
-            cd = self._provider_cooldown_until.get(p, 0.0) - now
-            if cd > 0:
-                continue
-            if p == "groq_1":
-                return "LLM: Groq (key 1)"
-            elif p == "groq_2":
-                return "LLM: Groq (key 2)"
-            elif p in ("gemini_1", "gemini_2"):
-                gem_num = "2" if p == "gemini_2" else "1"
-                if groq_cooling > 0:
-                    return f"LLM: Gemini (backup, Groq cooling down {int(groq_cooling)} s)"
-                return f"LLM: Gemini (key {gem_num})"
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            ex_until = 0.0
+            if st.is_daily_exhausted and st.daily_reset_epoch > now:
+                ex_until = st.daily_reset_epoch
+            if st.group_id and self._group_exhausted_until.get(st.group_id, 0.0) > now:
+                ex_until = max(ex_until, self._group_exhausted_until[st.group_id])
 
-        # If Groq is cooling down and no backup is available
-        if groq_cooling > 0:
-            return f"LLM: Rules only (Groq cooling down {int(groq_cooling)} s)"
-        return "LLM: Rules only (amber degraded)"
+            if ex_until > now:
+                rem_str = format_seconds_remaining(ex_until - now)
+                reason = st.daily_reason or ("Groq daily token limit reached" if "groq" in p else "Gemini daily request limit reached")
+                return f"LLM: rules only ({reason}, resets in {rem_str})"
+
+        # 2. Check short per-minute cooldowns
+        for p in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
+            cfg = configs.get(p)
+            if not cfg or not cfg.api_key:
+                continue
+            cd_until = self.get_provider_cooldown_until(p)
+            if cd_until > now:
+                rem_str = format_seconds_remaining(cd_until - now)
+                kh = get_key_hash(cfg.api_key)
+                st = self._get_key_state(kh)
+                reason = "Groq cooling down" if "groq" in p else "Gemini cooling down"
+                if st.group_id and st.group_id in self._group_reasons:
+                    reason = self._group_reasons[st.group_id]
+                return f"LLM: rules only ({reason}, resets in {rem_str})"
+
+        # 3. Check invalid keys
+        for p in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
+            cfg = configs.get(p)
+            if not cfg or not cfg.api_key:
+                continue
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            if st.auth_failure_until > now:
+                prov_name = "Groq" if "groq" in p else "Gemini"
+                return f"LLM: rules only ({prov_name} key invalid)"
+
+        if not self.get_configured_providers():
+            return "LLM: rules only (no API keys configured)"
+
+        return "LLM: rules only (amber degraded)"
 
     def update_provider_state(
         self,
@@ -514,6 +815,15 @@ class ProviderAgnosticJudge:
             target_names.append("gemini")
 
         now = time.time()
+        if cfg and cfg.api_key:
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            st.last_call_ok = last_call_ok
+            st.last_error = self.sanitize_secrets(last_error) if last_error else None
+            st.last_latency_ms = last_latency_ms
+            if last_call_ok:
+                st.state = "ok"
+
         for t in target_names:
             state = self._provider_states.setdefault(t, {})
             state["configured"] = bool(cfg and cfg.api_key) and (now >= self._auth_failure_until.get(canonical, 0.0))
@@ -538,13 +848,23 @@ class ProviderAgnosticJudge:
         ant_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         if ant_key and len(ant_key) > 4:
             sanitized = sanitized.replace(ant_key, mask_key(ant_key))
+        for k, v in os.environ.items():
+            if ("KEY" in k or "SECRET" in k or "TOKEN" in k) and (k.startswith("GROQ_") or k.startswith("GEMINI_") or k.startswith("GOOGLE_") or k.startswith("MISTRAL_") or k.startswith("OPENROUTER_")):
+                val = str(v).strip()
+                if len(val) > 4:
+                    sanitized = sanitized.replace(val, mask_key(val))
         return sanitized
 
     def reset_session_state(self) -> None:
         """Reset session state, cooldowns, and status (for test isolation)."""
+        self._key_states.clear()
+        self._group_cooldown_until.clear()
+        self._group_exhausted_until.clear()
+        self._group_members.clear()
+        self._group_reasons.clear()
+        self._groq_429_history.clear()
         self._auth_failure_until.clear()
         self._provider_cooldown_until.clear()
-        self._groq_429_history.clear()
         self.last_status = "fallback:rules_only"
         self.last_provider = None
         self.last_error = None
@@ -632,6 +952,173 @@ class ProviderAgnosticJudge:
             cooldown = self._parse_cooldown_seconds(headers)
             self._provider_cooldown_until[provider] = time.time() + cooldown
             logger.info("Provider '%s' reported 0 remaining quota; cooling down for %.1fs.", provider, cooldown)
+
+    def parse_429_details(self, provider: str, body_str: str, headers: Optional[Any]) -> dict[str, Any]:
+        """Parse 429 response body and headers for Groq and Gemini (§3 429 Handling)."""
+        now = time.time()
+        is_daily = False
+        cooldown_seconds = 60.0
+        group_id = None
+        reason = "Rate limited"
+        learned_limits = {
+            "rpm": {"limit": None, "remaining": None},
+            "rpd": {"limit": None, "remaining": None},
+            "tpm": {"limit": None, "remaining": None},
+            "tpd": {"limit": None, "remaining": None},
+        }
+
+        # 1. Parse Headers if present
+        if headers:
+            rem_req = headers.get("x-ratelimit-remaining-requests") or headers.get("X-RateLimit-Remaining-Requests")
+            lim_req = headers.get("x-ratelimit-limit-requests") or headers.get("X-RateLimit-Limit-Requests")
+            rem_tok = headers.get("x-ratelimit-remaining-tokens") or headers.get("X-RateLimit-Remaining-Tokens")
+            lim_tok = headers.get("x-ratelimit-limit-tokens") or headers.get("X-RateLimit-Limit-Tokens")
+            reset_req = headers.get("x-ratelimit-reset-requests") or headers.get("X-RateLimit-Reset-Requests")
+            reset_tok = headers.get("x-ratelimit-reset-tokens") or headers.get("X-RateLimit-Reset-Tokens")
+            retry_after = headers.get("retry-after") or headers.get("Retry-After")
+            org_hdr = headers.get("groq-organization") or headers.get("Groq-Organization")
+
+            if lim_req:
+                try:
+                    learned_limits["rpm"]["limit"] = int(lim_req)
+                except (ValueError, TypeError):
+                    pass
+            if rem_req is not None:
+                try:
+                    learned_limits["rpm"]["remaining"] = int(rem_req)
+                except (ValueError, TypeError):
+                    pass
+            if lim_tok:
+                try:
+                    learned_limits["tpm"]["limit"] = int(lim_tok)
+                except (ValueError, TypeError):
+                    pass
+            if rem_tok is not None:
+                try:
+                    learned_limits["tpm"]["remaining"] = int(rem_tok)
+                except (ValueError, TypeError):
+                    pass
+
+            dur_req = parse_groq_reset_duration(reset_req) if reset_req else 0.0
+            dur_tok = parse_groq_reset_duration(reset_tok) if reset_tok else 0.0
+
+            if dur_tok >= 3600:
+                is_daily = True
+                cooldown_seconds = dur_tok
+                reason = "Groq daily token limit reached"
+            elif dur_tok > 0:
+                cooldown_seconds = dur_tok
+                reason = "Groq token rate limit reached"
+            elif dur_req > 0:
+                cooldown_seconds = dur_req
+                reason = "Groq request rate limit reached"
+            elif retry_after:
+                try:
+                    cooldown_seconds = float(retry_after)
+                    reason = "Groq rate limited"
+                except ValueError:
+                    pass
+
+            if org_hdr:
+                group_id = str(org_hdr).strip()
+
+        # 2. Parse Body JSON
+        clean_body = body_str.strip() if body_str else ""
+        try:
+            body_json = json.loads(clean_body)
+        except Exception:
+            body_json = {}
+
+        # Gemini inspection
+        err_obj = body_json.get("error", {})
+        if not isinstance(err_obj, dict):
+            err_obj = {"message": str(err_obj)}
+        status_str = err_obj.get("status") or (body_json.get("status") if isinstance(body_json, dict) else "")
+        details_list = err_obj.get("details", []) if isinstance(err_obj, dict) else []
+
+        if status_str == "RESOURCE_EXHAUSTED" or "gemini" in provider or "QuotaFailure" in clean_body:
+            reason = "Gemini rate limited"
+            for d in details_list:
+                d_type = d.get("@type", "")
+                if "QuotaFailure" in d_type:
+                    violations = d.get("violations", [])
+                    for v in violations:
+                        subj = v.get("subject", "")
+                        desc = v.get("description", "").lower()
+                        if "project:" in subj or "projects/" in subj:
+                            group_id = subj
+                        if "per day" in desc or "perday" in desc or "requests per day" in desc:
+                            is_daily = True
+                            reason = "Gemini daily request limit reached"
+
+                if "ErrorInfo" in d_type:
+                    meta = d.get("metadata", {})
+                    consumer = meta.get("consumer", "")
+                    if consumer:
+                        group_id = consumer
+                    quota_limit = meta.get("quota_limit", "")
+                    if "PerDay" in quota_limit or "per day" in quota_limit.lower() or "RequestsPerDay" in quota_limit:
+                        is_daily = True
+                        reason = "Gemini daily request limit reached"
+                        lim_val = meta.get("quota_limit_value")
+                        if lim_val:
+                            try:
+                                learned_limits["rpd"]["limit"] = int(lim_val)
+                            except ValueError:
+                                pass
+                    elif "PerMinute" in quota_limit:
+                        reason = "Gemini per-minute request limit reached"
+                        lim_val = meta.get("quota_limit_value")
+                        if lim_val:
+                            try:
+                                learned_limits["rpm"]["limit"] = int(lim_val)
+                            except ValueError:
+                                pass
+
+                if "RetryInfo" in d_type:
+                    retry_delay = d.get("retryDelay", "")
+                    if retry_delay:
+                        parsed_delay = parse_groq_reset_duration(retry_delay)
+                        if parsed_delay > 0 and not is_daily:
+                            cooldown_seconds = parsed_delay
+
+            msg = err_obj.get("message", "").lower()
+            if "per day" in msg or "daily" in msg or "requests per day" in msg:
+                is_daily = True
+                reason = "Gemini daily request limit reached"
+
+            if is_daily:
+                cooldown_seconds = seconds_until_midnight_pacific()
+
+        # Groq body inspection
+        if "groq" in provider or "org_" in clean_body:
+            m_org = re.search(r"organization ['`](org_[a-zA-Z0-9_-]+)['`]", clean_body)
+            if m_org:
+                group_id = m_org.group(1)
+
+            msg = err_obj.get("message", clean_body)
+            m_try = re.search(r"Please try again in (\d+[a-z0-9\.]+)", msg)
+            if m_try:
+                dur_try = parse_groq_reset_duration(m_try.group(1))
+                if dur_try > 0:
+                    cooldown_seconds = dur_try
+                    if dur_try >= 3600 or "daily" in msg.lower() or "per day" in msg.lower():
+                        is_daily = True
+                        reason = "Groq daily token limit reached"
+                    elif "token" in msg.lower():
+                        reason = "Groq token rate limit reached"
+                    else:
+                        reason = "Groq request rate limit reached"
+
+        reset_epoch = now + cooldown_seconds
+        return {
+            "is_daily": is_daily,
+            "cooldown_seconds": cooldown_seconds,
+            "reset_epoch": reset_epoch,
+            "group_id": group_id,
+            "reason": reason,
+            "learned_limits": learned_limits,
+        }
 
     def _call_provider_endpoint(
         self,
@@ -732,7 +1219,13 @@ class ProviderAgnosticJudge:
 
             # 401, 403: Invalid key / unauthorized -> retry every 5 minutes (300 seconds) (§2)
             if status_code in (401, 403):
-                self._auth_failure_until[config.name] = time.time() + 300.0
+                kh = get_key_hash(config.api_key)
+                st = self._get_key_state(kh)
+                st.auth_failure_until = time.time() + 300.0
+                st.state = "invalid"
+                st.last_call_ok = False
+                st.last_error = f"Auth failed (HTTP {status_code}): Invalid key"
+                st.last_status_code = status_code
                 logger.warning(
                     "Provider '%s' returned HTTP %d. Auth failed; probe allowed after 5 minutes.",
                     config.name,
@@ -740,33 +1233,66 @@ class ProviderAgnosticJudge:
                 )
                 raise ProviderHTTPError(status_code, body_str, resp_headers)
 
-            # 429: Rate limit / Quota exceeded -> apply cooldown and check shared limit (§2)
+            # 429: Rate limit / Quota exceeded -> apply cooldown and check shared limit (§3)
             if status_code == 429:
-                cooldown = self._parse_cooldown_seconds(resp_headers)
+                details = self.parse_429_details(config.name, body_str, resp_headers)
                 now = time.time()
-                self._provider_cooldown_until[config.name] = now + cooldown
+                kh = get_key_hash(config.api_key)
+                st = self._get_key_state(kh)
 
+                st.last_call_ok = False
+                st.last_status_code = 429
+                st.last_error = f"{details['reason']} (resets in {format_seconds_remaining(details['cooldown_seconds'])})"
+                st.group_id = details["group_id"]
+
+                for lim_k, lim_v in details["learned_limits"].items():
+                    if lim_v["limit"] is not None:
+                        st.learned_limits[lim_k]["limit"] = lim_v["limit"]
+                    if lim_v["remaining"] is not None:
+                        st.learned_limits[lim_k]["remaining"] = lim_v["remaining"]
+
+                if details["is_daily"]:
+                    st.is_daily_exhausted = True
+                    st.daily_reset_epoch = details["reset_epoch"]
+                    st.daily_reason = details["reason"]
+                    st.state = "exhausted"
+                    if details["group_id"]:
+                        self._group_exhausted_until[details["group_id"]] = max(
+                            self._group_exhausted_until.get(details["group_id"], 0.0),
+                            details["reset_epoch"],
+                        )
+                else:
+                    st.cooldown_until = details["reset_epoch"]
+                    st.state = "cooldown"
+
+                if details["group_id"]:
+                    self._group_cooldown_until[details["group_id"]] = max(
+                        self._group_cooldown_until.get(details["group_id"], 0.0),
+                        details["reset_epoch"],
+                    )
+                    self._group_members[details["group_id"]].add(config.name)
+                    self._group_reasons[details["group_id"]] = details["reason"]
+
+                # Group quota scope: Groq keys by organization or proximity
                 if config.name in ("groq", "groq_1", "groq_2"):
                     prov_key = "groq_1" if config.name == "groq" else config.name
                     self._groq_429_history[prov_key] = now
                     other = "groq_2" if prov_key == "groq_1" else "groq_1"
                     other_time = self._groq_429_history.get(other, 0.0)
-                    other_cd = self._provider_cooldown_until.get(other, 0.0)
+                    other_cd = self.get_provider_cooldown_until(other)
                     if (now - other_time <= 60.0) or (other_cd > now):
-                        logger.warning("groq keys appear to share a limit")
-                        shared_cd = max(cooldown, other_cd - now, 30.0)
-                        shared_until = now + shared_cd
-                        self._provider_cooldown_until["groq_1"] = shared_until
-                        self._provider_cooldown_until["groq_2"] = shared_until
-                        if "groq" in self._provider_cooldown_until:
-                            self._provider_cooldown_until["groq"] = shared_until
+                        shared_grp = details["group_id"] or "groq_shared_org"
+                        self._group_members[shared_grp].update(["groq_1", "groq_2"])
+                        shared_until = max(details["reset_epoch"], other_cd)
+                        self._group_cooldown_until[shared_grp] = shared_until
+                        if details["is_daily"]:
+                            self._group_exhausted_until[shared_grp] = shared_until
+                        self._group_reasons[shared_grp] = details["reason"]
+                        logger.warning("groq keys appear to share a limit; grouped under %s", shared_grp)
 
-                logger.warning(
-                    "Provider '%s' returned HTTP 429. Cooldown set for %.1f seconds.",
-                    config.name,
-                    cooldown,
-                )
-                raise ProviderHTTPError(429, f"Rate limited. Cooldown {int(cooldown)}s", resp_headers)
+                err_msg = f"Rate limited. {details['reason']} (resets in {format_seconds_remaining(details['cooldown_seconds'])})"
+                logger.warning("Provider '%s' returned HTTP 429: %s", config.name, err_msg)
+                raise ProviderHTTPError(429, err_msg, resp_headers)
 
             # 5xx: Server error -> retry once
             if status_code in (500, 502, 503, 504) and not is_retry:
@@ -899,6 +1425,10 @@ class ProviderAgnosticJudge:
         try:
             raw_resp = self._call_provider_endpoint(cfg, test_input, timeout=timeout)
             dur = round((time.perf_counter() - t_start) * 1000, 2)
+            if isinstance(raw_resp, list):
+                raw_resp = raw_resp[0] if raw_resp else {}
+            if not isinstance(raw_resp, dict):
+                raw_resp = {}
             choices = raw_resp.get("choices", [])
             if not choices:
                 self.update_provider_state(name, reachable=True, last_call_ok=False, last_error="No choices returned", last_latency_ms=dur)
@@ -985,6 +1515,117 @@ class ProviderAgnosticJudge:
                 "details": clean_err[:80],
                 "error": clean_err,
             }
+
+    def retest_provider(self, name: str, timeout: float = 8.0) -> dict[str, Any]:
+        """Make one tiny real call per provider and classify status and retry time (§2)."""
+        configs = self.get_provider_configs()
+        cfg = configs.get(name)
+        if not cfg or not cfg.api_key:
+            return {
+                "provider": name,
+                "display_name": cfg.display_name if cfg else name,
+                "configured": False,
+                "masked_key": "[none]",
+                "status_code": None,
+                "classification": "key invalid",
+                "when_to_retry": None,
+                "model": cfg.model if cfg else "-",
+                "latency_ms": 0.0,
+                "details": "Key not configured in .env",
+                "last_error": "No API key configured",
+            }
+
+        masked = mask_key(cfg.api_key)
+        test_prompt = "<untrusted>\nProbe security status\n</untrusted>"
+        t_start = time.perf_counter()
+
+        try:
+            raw_resp = self._call_provider_endpoint(cfg, test_prompt, timeout=timeout)
+            dur = round((time.perf_counter() - t_start) * 1000, 2)
+            kh = get_key_hash(cfg.api_key)
+            st = self._get_key_state(kh)
+            st.last_call_ok = True
+            st.state = "ok"
+            st.auth_failure_until = 0.0
+            st.cooldown_until = 0.0
+            st.is_daily_exhausted = False
+            st.last_error = None
+            st.last_latency_ms = dur
+
+            self.update_provider_state(name, reachable=True, last_call_ok=True, last_error=None, last_latency_ms=dur)
+            return {
+                "provider": name,
+                "display_name": cfg.display_name,
+                "configured": True,
+                "masked_key": masked,
+                "status_code": 200,
+                "classification": "ok",
+                "when_to_retry": None,
+                "model": cfg.model,
+                "latency_ms": dur,
+                "details": "Provider reachable and authenticated",
+                "last_error": None,
+            }
+        except ProviderHTTPError as e:
+            dur = round((time.perf_counter() - t_start) * 1000, 2)
+            clean_err = self.sanitize_secrets(e.body)
+            status_code = e.status_code
+
+            if status_code in (401, 403):
+                classification = "key invalid"
+                when_to_retry = "recheck credentials"
+                details = f"HTTP {status_code}: Invalid API key"
+            elif status_code == 429:
+                dt = self.parse_429_details(name, e.body, e.headers)
+                if dt["is_daily"]:
+                    classification = "per-day limit"
+                    when_to_retry = f"in {format_seconds_remaining(dt['cooldown_seconds'])} (midnight Pacific)" if "gemini" in name else f"in {format_seconds_remaining(dt['cooldown_seconds'])}"
+                    details = dt["reason"]
+                else:
+                    classification = "per-minute limit"
+                    when_to_retry = f"in {format_seconds_remaining(dt['cooldown_seconds'])}"
+                    details = dt["reason"]
+            else:
+                classification = "network" if status_code in (500, 502, 503, 504) else "error"
+                when_to_retry = "in 60 s"
+                details = clean_err[:100]
+
+            return {
+                "provider": name,
+                "display_name": cfg.display_name,
+                "configured": True,
+                "masked_key": masked,
+                "status_code": status_code,
+                "classification": classification,
+                "when_to_retry": when_to_retry,
+                "model": cfg.model,
+                "latency_ms": dur,
+                "details": details,
+                "last_error": clean_err[:120],
+            }
+        except Exception as e:
+            dur = round((time.perf_counter() - t_start) * 1000, 2)
+            clean_err = self.sanitize_secrets(str(e))
+            return {
+                "provider": name,
+                "display_name": cfg.display_name,
+                "configured": True,
+                "masked_key": masked,
+                "status_code": 0,
+                "classification": "network",
+                "when_to_retry": "in 30 s",
+                "model": cfg.model,
+                "latency_ms": dur,
+                "details": clean_err[:100],
+                "last_error": clean_err[:120],
+            }
+
+    def retest_all_providers(self) -> dict[str, dict[str, Any]]:
+        """Retest all configured LLM providers (§2)."""
+        results = {}
+        for p in ("groq_1", "groq_2", "gemini_1", "gemini_2"):
+            results[p] = self.retest_provider(p)
+        return results
 
     def evaluate_text(
         self,
@@ -1077,6 +1718,10 @@ class ProviderAgnosticJudge:
                     cfg, user_prompt, timeout=timeout_per_provider
                 )
                 dur = round((time.perf_counter() - t_start) * 1000, 2)
+                if isinstance(response_data, list):
+                    response_data = response_data[0] if response_data else {}
+                if not isinstance(response_data, dict):
+                    response_data = {}
                 choices = response_data.get("choices", [])
                 if not choices:
                     raise ValueError("No choices returned in /chat/completions response")
@@ -1101,25 +1746,64 @@ class ProviderAgnosticJudge:
             except Exception as e:
                 dur = round((time.perf_counter() - t_start) * 1000, 2)
                 err_clean = self.sanitize_secrets(str(e))
+                cur_now = time.time()
 
-                # Check for 401/403 auth failure:
-                if (isinstance(e, ProviderHTTPError) and e.status_code in (401, 403)) or (isinstance(e, urllib.error.HTTPError) and e.code in (401, 403)):
-                    self._auth_failure_until[provider] = time.time() + 300.0
+                is_auth_error = False
+                is_429 = False
 
-                # Check for timeout:
-                if "timed out" in err_clean.lower():
-                    self._provider_cooldown_until[provider] = time.time() + 60.0
-                    logger.warning("Provider '%s' timed out. Setting cooldown for 60s.", provider)
+                if isinstance(e, ProviderHTTPError):
+                    if e.status_code in (401, 403):
+                        is_auth_error = True
+                    elif e.status_code == 429:
+                        is_429 = True
+                elif isinstance(e, urllib.error.HTTPError):
+                    if e.code in (401, 403):
+                        is_auth_error = True
+                    elif e.code == 429:
+                        is_429 = True
 
-                # Check for 429 rate limit / quota exceeded:
-                elif (isinstance(e, ProviderHTTPError) and e.status_code == 429) or (isinstance(e, urllib.error.HTTPError) and e.code == 429):
-                    hdrs = getattr(e, "headers", None)
-                    cooldown = self._parse_cooldown_seconds(hdrs)
-                    if "quota" in err_clean.lower() or "exhausted" in err_clean.lower():
-                        cooldown = max(cooldown, 300.0)
-                    cur_now = time.time()
-                    self._provider_cooldown_until[provider] = cur_now + cooldown
-                    # Removed shared quota for Gemini to allow failover to gemini_2
+                if not is_auth_error and ("401" in err_clean or "403" in err_clean or "unauthorized" in err_clean.lower() or "invalid api key" in err_clean.lower()):
+                    is_auth_error = True
+
+                if not is_429 and ("429" in err_clean or "rate limit" in err_clean.lower() or "resource_exhausted" in err_clean.lower()):
+                    is_429 = True
+
+                if is_auth_error:
+                    self._auth_failure_until[provider] = cur_now + 300.0
+                    logger.warning("Provider '%s' auth failure (401/403). Cooldown 300s.", provider)
+
+                elif is_429:
+                    body = getattr(e, "body", "")
+                    headers = getattr(e, "headers", None)
+                    if not body and isinstance(e, urllib.error.HTTPError) and hasattr(e, "read"):
+                        try:
+                            body = e.read().decode("utf-8", errors="replace")
+                        except Exception:
+                            body = ""
+                    if not headers and hasattr(e, "headers"):
+                        headers = e.headers
+
+                    parsed_dt = self.parse_429_details(provider, str(body or err_clean), headers)
+                    cd_sec = parsed_dt.get("cooldown_seconds", 60.0)
+                    is_daily = parsed_dt.get("is_daily", False)
+                    group_id = parsed_dt.get("group_id")
+
+                    if is_daily:
+                        self.set_provider_exhausted(provider, cur_now + cd_sec, parsed_dt.get("reason", "Daily limit reached"))
+                    else:
+                        self._provider_cooldown_until[provider] = cur_now + cd_sec
+
+                    # Update learned limits
+                    if cfg and cfg.api_key:
+                        kh = get_key_hash(cfg.api_key)
+                        st = self._get_key_state(kh)
+                        for lim_k, lim_v in parsed_dt.get("learned_limits", {}).items():
+                            if lim_v.get("limit") is not None:
+                                st.learned_limits[lim_k]["limit"] = lim_v["limit"]
+                            if lim_v.get("remaining") is not None:
+                                st.learned_limits[lim_k]["remaining"] = lim_v["remaining"]
+
+                    # Groq shared rate limit detection (§2, §3):
                     if provider in ("groq_1", "groq_2", "groq"):
                         prov_key = "groq_1" if provider == "groq" else provider
                         self._groq_429_history[prov_key] = cur_now
@@ -1128,12 +1812,33 @@ class ProviderAgnosticJudge:
                         other_cd = self._provider_cooldown_until.get(other, 0.0)
                         if (cur_now - other_time <= 60.0) or (other_cd > cur_now):
                             logger.warning("groq keys appear to share a limit")
-                            shared_cd = max(cooldown, other_cd - cur_now, 30.0)
+                            shared_cd = max(cd_sec, other_cd - cur_now, 30.0)
                             shared_until = cur_now + shared_cd
                             self._provider_cooldown_until["groq_1"] = shared_until
                             self._provider_cooldown_until["groq_2"] = shared_until
-                            if "groq" in self._provider_cooldown_until:
-                                self._provider_cooldown_until["groq"] = shared_until
+                            if is_daily:
+                                self.set_provider_exhausted("groq_1", shared_until, parsed_dt.get("reason"))
+                                self.set_provider_exhausted("groq_2", shared_until, parsed_dt.get("reason"))
+                            self._group_members["groq_shared_org"].add("groq_1")
+                            self._group_members["groq_shared_org"].add("groq_2")
+
+                    # Gemini quota sharing (project/consumer)
+                    if provider in ("gemini_1", "gemini_2", "gemini"):
+                        gem_grp = group_id or "gemini_shared_project"
+                        self._group_members[gem_grp].add("gemini_1")
+                        self._group_members[gem_grp].add("gemini_2")
+                        if is_daily:
+                            self.set_group_exhausted(gem_grp, cur_now + cd_sec, parsed_dt.get("reason", "Gemini daily limit reached"))
+                            self.set_provider_exhausted("gemini_1", cur_now + cd_sec, parsed_dt.get("reason"))
+                            self.set_provider_exhausted("gemini_2", cur_now + cd_sec, parsed_dt.get("reason"))
+                        else:
+                            self._provider_cooldown_until["gemini_1"] = cur_now + cd_sec
+                            self._provider_cooldown_until["gemini_2"] = cur_now + cd_sec
+
+                # Timeout handling:
+                elif "timed out" in err_clean.lower():
+                    self.set_provider_cooldown(provider, time.time() + 60.0)
+                    logger.warning("Provider '%s' timed out. Setting cooldown for 60s.", provider)
 
                 self.update_provider_state(provider, reachable=True, last_call_ok=False, last_error=err_clean[:120], last_latency_ms=dur)
                 logger.warning("LLM Judge provider '%s' failed (model=%s): %s", provider, cfg.model, err_clean)
@@ -1145,8 +1850,8 @@ class ProviderAgnosticJudge:
         self.last_status = fallback_status
         self.last_provider = None
         self.last_error = last_err_msg
-        logger.info("LLM Judge all providers failed (%s). Operating in fallback:rules_only.", last_err_msg)
-        return JudgeScores(rationale=f"LLM judge fallback: {last_err_msg}"), "", fallback_status
+        clean_rationale = f"LLM judge fallback: {last_err_msg}"[:490]
+        return JudgeScores(rationale=clean_rationale), "", fallback_status
 
 
     def detect(

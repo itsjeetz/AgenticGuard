@@ -1,5 +1,14 @@
 import os
+import urllib.request
+import pytest
 from playwright.sync_api import sync_playwright
+
+def is_server_available():
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=1.5) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
 
 ARTIFACTS_DIR = r"C:\Users\Jeet Das\.gemini\antigravity-ide\brain\6773b9b7-84d0-4a14-94ed-dc0a01321b0b"
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
@@ -18,6 +27,9 @@ def test_evidence_drawer_toggle():
     6. Re-renders reset all rows to collapsed. Scroll preserved (no DOM rebuild on toggle).
     7. Uses CSS display / hidden attribute, respects prefers-reduced-motion.
     """
+    if not is_server_available():
+        pytest.skip("Live server is not running on http://127.0.0.1:8000; skipping Playwright test.")
+
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(viewport={"width": 1400, "height": 900})

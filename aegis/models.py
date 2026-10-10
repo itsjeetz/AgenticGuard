@@ -114,13 +114,10 @@ class HealthResponse(BaseModel):
     ocr_available: bool
     classifier_backend: str
     judge_available: bool
-    anthropic_key_set: bool
-    judge_model: str
-    agent_model: str
+    groq_model: str = "openai/gpt-oss-20b"
     gemini_key_set: bool = False
     gemini_available: bool = False
-    gemini_model: str = "gemini-2.5-flash"
-    hf_classifier_id: str | None = None
+    gemini_model: str = "gemini-3.5-flash"
     degraded_mode: bool
     demo_mode: bool = False
     rate_limit_per_minute: int | None = None
