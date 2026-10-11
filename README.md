@@ -11,7 +11,7 @@
 [![Hackathon](https://img.shields.io/badge/ET%20AI%20Hackathon-Agentic%20Cybersecurity-7928CA?style=for-the-badge)]()
 [![Python](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white)]()
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white)]()
-[![Tests](https://img.shields.io/badge/Tests-178%20Passed%20%7C%202%20Skipped-success?style=for-the-badge)]()
+[![Tests](https://img.shields.io/badge/Tests-178%20Passed-success?style=for-the-badge)]()
 
 </div>
 
