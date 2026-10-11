@@ -1,6 +1,6 @@
-<div align="center">
+<p align="center"><img src="docs/media/banner.png" alt="AgenticGuard" width="100%"></p>
 
-<img src="docs/media/banner.svg" alt="AgenticGuard Banner" width="100%">
+<div align="center">
 
 # AgenticGuard
 
@@ -316,9 +316,27 @@ AgenticGuard/
 
 ---
 
-## 👥 Team
+## 👥 Team Elastic Thinkers
 
-### Elastic Thinkers
-* `<<TEAM MEMBERS: fill in names>>`
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="docs/media/team/anuska-paul.png" width="140" height="140" alt="Anuska Paul">
+      <br><b>Anuska Paul</b>
+    </td>
+    <td align="center">
+      <img src="docs/media/team/tanmana-das.png" width="140" height="140" alt="Tanmana Das">
+      <br><b>Tanmana Das</b>
+    </td>
+    <td align="center">
+      <img src="docs/media/team/srinjoy-roychowdhury.png" width="140" height="140" alt="Srinjoy RoyChowdhury">
+      <br><b>Srinjoy RoyChowdhury</b>
+    </td>
+    <td align="center">
+      <img src="docs/media/team/jeet-das.png" width="140" height="140" alt="Jeet Das">
+      <br><b>Jeet Das</b>
+    </td>
+  </tr>
+</table>
 
 *Built for the ET AI Hackathon &bull; Problem 2: Agentic Cybersecurity &bull; 2026*
