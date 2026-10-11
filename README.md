@@ -58,11 +58,7 @@
 
 ## 📐 Architecture & Pipeline
 
-<div align="center">
 
-<img src="docs/media/architecture.svg" alt="AgenticGuard Multi-Layer Architecture" width="100%">
-
-</div>
 
 ```mermaid
 flowchart TD

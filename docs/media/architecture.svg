@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 700" width="100%" height="700" preserveAspectRatio="xMidYMid meet">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 700" width="940" height="700" preserveAspectRatio="xMidYMid meet">
   <defs>
     <linearGradient id="cardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#18072b"/>
@@ -18,13 +18,13 @@
   </defs>
 
   <!-- Background Base -->
-  <rect width="940" height="700" rx="14" fill="#090112" stroke="#2a0d4a" stroke-width="2"/>
+  <rect x="1.5" y="1.5" width="937" height="697" rx="14" fill="#090112" stroke="#7928ca" stroke-width="2"/>
 
   <!-- Top Inbound Input Box -->
   <g transform="translate(40, 20)">
     <rect width="860" height="48" rx="8" fill="#150524" stroke="#a100ff" stroke-width="1.5" stroke-dasharray="4,4"/>
     <text x="430" y="24" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="13" font-weight="700" fill="#e9d5ff">
-      INBOUND UNTRUSTED DATA &bull; 11 INPUT FORMATS
+      INBOUND UNTRUSTED DATA &#8226; 11 INPUT FORMATS
     </text>
     <text x="430" y="40" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#a78bfa">
       Email (.eml), Web Pages, PDFs, Word (.docx), API JSON, Markdown, HTML, Source Code, Images, OCR Text, User Messages
@@ -42,10 +42,10 @@
       LAYER 1: FORMAT-AWARE INGESTION ENGINE (aegis/ingestion/)
     </text>
     <text x="16" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#f5f3ff">
-      11 Domain Adapters &bull; Hidden Layer Extraction &bull; Structural Safety Limits
+      11 Domain Adapters &#8226; Hidden Layer Extraction &#8226; Structural Safety Limits
     </text>
     <text x="16" y="57" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#c4b5fd">
-      Unpacks white text &amp; tiny fonts in PDF &bull; &lt;w:vanish/&gt; &amp; comments in DOCX &bull; CSS display:none in HTML &bull; Multipart MIME in Email
+      Unpacks white text &amp; tiny fonts in PDF &#8226; &lt;w:vanish/&gt; &amp; comments in DOCX &#8226; CSS display:none in HTML &#8226; Multipart MIME in Email
     </text>
   </g>
 
@@ -60,10 +60,10 @@
       LAYER 2: NORMALIZATION &amp; COORDINATE GRAPH (aegis/normalize/)
     </text>
     <text x="16" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#f5f3ff">
-      MappedText Bidirectional Offset Tracking &bull; Recursive Multi-Encoding Decoders
+      MappedText Bidirectional Offset Tracking &#8226; Recursive Multi-Encoding Decoders
     </text>
     <text x="16" y="57" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#c4b5fd">
-      Decodes Base64, Hex, ROT13, Leetspeak, Homoglyphs (NFKC), Zero-Width characters &bull; Maps decoded spans back to raw document offsets
+      Decodes Base64, Hex, ROT13, Leetspeak, Homoglyphs (NFKC), Zero-Width characters &#8226; Maps decoded spans back to raw document offsets
     </text>
   </g>
 
@@ -81,17 +81,17 @@
       <!-- Box L3a -->
       <rect width="268" height="44" rx="6" fill="#200736" stroke="#6b21a8" stroke-width="1"/>
       <text x="12" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#e9d5ff">L3a: Deterministic Rules Engine</text>
-      <text x="12" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a78bfa">9 vectors &bull; Instruction-in-Data detection</text>
+      <text x="12" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a78bfa">9 vectors &#8226; Instruction-in-Data detection</text>
 
       <!-- Box L3c -->
       <rect x="282" width="268" height="44" rx="6" fill="#200736" stroke="#6b21a8" stroke-width="1"/>
       <text x="294" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#e9d5ff">L3c: Provider-Agnostic LLM Judge</text>
-      <text x="294" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a78bfa">Grey zone (0.35 ≤ risk ≤ 0.75) &bull; JSON schema</text>
+      <text x="294" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a78bfa">Grey zone (0.35 ≤ risk ≤ 0.75) &#8226; JSON schema</text>
 
       <!-- Box L3d -->
       <rect x="564" width="268" height="44" rx="6" fill="#200736" stroke="#6b21a8" stroke-width="1"/>
       <text x="576" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#e9d5ff">L3d: Stateful Session Tracker</text>
-      <text x="576" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a78bfa">Rolling window turns t-3..t &bull; Multi-turn jailbreaks</text>
+      <text x="576" y="34" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#a78bfa">Rolling window turns t-3..t &#8226; Multi-turn jailbreaks</text>
     </g>
   </g>
 
@@ -106,10 +106,10 @@
       LAYER 4: FUSION &amp; POLICY DECISION ENGINE (aegis/policy/)
     </text>
     <text x="16" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#f5f3ff">
-      Carrier Multipliers (Email: 1.2x, Web/PDF: 1.1x) &bull; Bayesian Noisy-OR Score Aggregation
+      Carrier Multipliers (Email: 1.2x, Web/PDF: 1.1x) &#8226; Bayesian Noisy-OR Score Aggregation
     </text>
     <text x="16" y="57" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#c4b5fd">
-      Decisions: ALLOW (risk &lt; 0.25) &bull; SANITIZE (0.25 ≤ risk &lt; 0.85) &bull; BLOCK (risk ≥ 0.85)
+      Decisions: ALLOW (risk &lt; 0.25) &#8226; SANITIZE (0.25 ≤ risk &lt; 0.85) &#8226; BLOCK (risk ≥ 0.85)
     </text>
   </g>
 
@@ -124,10 +124,10 @@
       LAYER 5: SPOTLIGHTING NEUTRALIZER (aegis/neutralize/)
     </text>
     <text x="16" y="42" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#f5f3ff">
-      Original File Span Redaction &bull; Cryptographic Nonce Spotlighting Envelope
+      Original File Span Redaction &#8226; Cryptographic Nonce Spotlighting Envelope
     </text>
     <text x="16" y="57" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" fill="#c4b5fd">
-      Redacts hostile text directly on original coordinates &bull; Wraps safe payload in &lt;&lt;&lt;UNTRUSTED_CONTENT id=...&gt;&gt;&gt; delimiters
+      Redacts hostile text directly on original coordinates &#8226; Wraps safe payload in &lt;&lt;&lt;UNTRUSTED_CONTENT id=...&gt;&gt;&gt; delimiters
     </text>
   </g>
 
@@ -146,7 +146,7 @@
     <g transform="translate(20, 34)">
       <rect width="258" height="68" rx="6" fill="url(#guardGrad)" stroke="#581c87" stroke-width="1"/>
       <text x="14" y="20" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#ffffff">G1: Tool Guard</text>
-      <text x="14" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#d8b4fe">5 Risk Tiers &bull; Taint tracking</text>
+      <text x="14" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#d8b4fe">5 Risk Tiers &#8226; Taint tracking</text>
       <text x="14" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#c4b5fd">Blocks shell execution &amp; SQL writes</text>
     </g>
 
@@ -154,7 +154,7 @@
     <g transform="translate(301, 34)">
       <rect width="258" height="68" rx="6" fill="url(#guardGrad)" stroke="#581c87" stroke-width="1"/>
       <text x="14" y="20" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#ffffff">G2: Egress Guard</text>
-      <text x="14" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#d8b4fe">Canary tokens &bull; Secret masking</text>
+      <text x="14" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#d8b4fe">Canary tokens &#8226; Secret masking</text>
       <text x="14" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#c4b5fd">Blocks markdown image exfiltration</text>
     </g>
 
@@ -162,7 +162,7 @@
     <g transform="translate(582, 34)">
       <rect width="258" height="68" rx="6" fill="url(#guardGrad)" stroke="#581c87" stroke-width="1"/>
       <text x="14" y="20" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="11" font-weight="700" fill="#ffffff">G3: Memory Guard</text>
-      <text x="14" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#d8b4fe">Context poisoning &bull; Authority spoofing</text>
+      <text x="14" y="36" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#d8b4fe">Context poisoning &#8226; Authority spoofing</text>
       <text x="14" y="52" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" fill="#c4b5fd">Sanitizes memory writes</text>
     </g>
   </g>
